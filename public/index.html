@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PeopleOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="/vendor/chart.js" defer></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23c98400'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><circle cx="11" cy="12" r="5" fill="var(--policy)"/><circle cx="21" cy="12" r="5" fill="var(--data)"/><circle cx="11" cy="22" r="5" fill="var(--action)"/><circle cx="21" cy="22" r="5" fill="var(--career)"/></svg>
+      <div><strong>PeopleOS</strong><span>Your HR colleague, with agents</span></div>
+    </div>
+
+    <label class="field" for="persona">Signed in as
+      <select id="persona"></select>
+    </label>
+    <p class="access" id="access"></p>
+
+    <section class="try">
+      <h2>Try asking</h2>
+      <div id="suggestions"></div>
+    </section>
+
+    <section class="legend" aria-label="Agents">
+      <h2>Agents</h2>
+      <ul>
+        <li><i style="--c:var(--policy)"></i><span><b>Policy</b> answers from HR policies, with sources</span></li>
+        <li><i style="--c:var(--data)"></i><span><b>Data</b> turns questions into SQL and charts</span></li>
+        <li><i style="--c:var(--action)"></i><span><b>Action</b> applies leave, raises tickets — after you approve</span></li>
+        <li><i style="--c:var(--career)"></i><span><b>Career</b> shows what AI can take off your plate</span></li>
+        <li><i style="--c:var(--handoff)"></i><span><b>Handoff</b> brings in a human when it should</span></li>
+      </ul>
+    </section>
+    <p class="mode" id="mode"></p>
+  </aside>
+
+  <main class="chat">
+    <div class="thread" id="thread" aria-live="polite"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="Ask about policies, people data, leave, tickets or your career…" aria-label="Message"></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </main>
+
+  <aside class="trace" id="tracePanel">
+    <header>
+      <h2>Agent trace</h2>
+      <button class="ghost" id="traceToggle" aria-expanded="true">Hide</button>
+    </header>
+    <div class="lanes" aria-hidden="true">
+      <span></span><span title="Orchestrator">O</span><span title="Policy">P</span><span title="Data">D</span><span title="Action">A</span><span title="Career">C</span><span title="Handoff">H</span>
+    </div>
+    <ol class="steps" id="steps"><li class="empty">Send a message to watch the orchestrator route it, call tools and pause for approval.</li></ol>
+    <footer id="metrics"></footer>
+  </aside>
+</div>
+</body>
+</html>
