@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = fileURLToPath(new URL('../../data/policies', import.meta.url));
 const STOP = new Set('a an the of to and or for in on at is are be can i my me we our you your it this that with by as from do does how what when which who much many get have has will should without about any there need'.split(' '));
-const SYN = { wfh: 'work from home', leaves: 'leave', holiday: 'leave', vacation: 'earned leave', sick: 'sick', maternity: 'parental', paternity: 'parental', harassment: 'posh harassment', claim: 'reimbursement claim', reimburse: 'reimbursement', insurance: 'insurance medical', mediclaim: 'insurance medical', course: 'learning certification', certification: 'learning certification', wifi: 'internet', broadband: 'internet', esop: 'stock options', remote: 'remote home' };
+const SYN = { wfh: 'work from home', leaves: 'leave', holiday: 'leave', vacation: 'earned leave', sick: 'sick', maternity: 'parental', paternity: 'parental', harassment: 'posh harassment', claim: 'reimbursement claim', reimburse: 'reimbursement', insurance: 'insurance medical', mediclaim: 'insurance medical', course: 'learning certification', certification: 'learning certification', wifi: 'internet', broadband: 'internet', esop: 'stock options', remote: 'remote home', abroad: 'outside india', overseas: 'outside india', international: 'outside india', foreign: 'outside india', dubai: 'outside india', usa: 'outside india', london: 'outside india', singapore: 'outside india' };
 
 export const tokenize = (t) =>
   t.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
