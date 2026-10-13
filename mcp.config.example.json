@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "peopleos": {
+      "command": "node",
+      "args": ["--no-warnings", "/ABSOLUTE/PATH/TO/peopleos/src/mcp/server.js"],
+      "env": { "PEOPLEOS_USER": "E1001" }
+    }
+  }
+}
