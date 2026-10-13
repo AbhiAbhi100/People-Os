@@ -3,6 +3,7 @@
 // Offline mode: a semantic layer (metrics x dimensions x filters) that composes SQL.
 import { z } from 'zod';
 import { callTool } from '../tools/registry.js';
+import { GuardError } from '../lib/sqlGuard.js';
 import { SCHEMA } from '../db/index.js';
 import { chatJSON, isOffline } from '../llm/provider.js';
 
@@ -152,7 +153,7 @@ Follow-up questions refer to the previous query if given. Leave refuse as "" whe
       result = await callTool('run_sql', { sql }, ctx);
       break;
     } catch (e) {
-      if (e.code) { // guard / RBAC violations are policy, not bugs: don't retry around them
+      if (e instanceof GuardError) { // guard / RBAC violations are policy, not bugs: don't retry around them
         tracer.step('data', 'guard', `blocked: ${e.code}`, e.message);
         return { agent: 'data', confidence: 0.9, text: `🔒 ${e.message}`, sql, blocked: true };
       }
