@@ -171,7 +171,7 @@ function renderResult(r) {
     const d = el('details'); d.open = !r.chart;
     d.innerHTML = `<summary>How each task was scored</summary>${table(['task', 'hours_per_week', 'score', 'bucket', 'why'], r.career.tasks.map((t) => ({ ...t, bucket: t.bucket })))}
       <p style="color:var(--muted);margin:8px 0 0">score = 0.35·repetitive + 0.25·rules-based + 0.15·data-heavy − 0.15·judgment − 0.10·empathy, rescaled to 0–100.</p>`;
-    d.querySelectorAll('td:nth-child(4)').forEach((td) => { const b = td.textContent; td.innerHTML = `<span class="bucket ${b.split(' ')[0]}">${esc(b)}</span>`; });
+    d.querySelectorAll('td:nth-child(4)').forEach((td) => { const b = td.textContent; td.innerHTML = `<span class="bucket ${b.split(/[ -]/)[0]}">${esc(b)}</span>`; });
     box.append(d);
   }
   renderCards(box, r.cards);
