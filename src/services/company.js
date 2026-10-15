@@ -2,6 +2,7 @@
 import { query, one, tx } from '../db/pg.js';
 import { DEFAULT_SETTINGS } from '../db/schema.js';
 import { hashPassword, createInvite } from '../auth.js';
+import { sendInviteEmail } from './notify.js';
 import { bump } from '../lib/versions.js';
 
 export class UserError extends Error { constructor(msg, status = 400) { super(msg); this.status = status; } }
@@ -64,6 +65,7 @@ export async function updateSettings(companyId, patch) {
   for (const k of ['earnedNoticeDays', 'autoApproveUpToDays', 'dailyMessageLimit']) {
     if (patch[k] != null) { const n = Number(patch[k]); if (Number.isFinite(n) && n >= 0 && n <= 100000) next[k] = n; }
   }
+  if (patch.emailNotifications != null) next.emailNotifications = !!patch.emailNotifications;
   if (patch.contacts) for (const k of Object.keys(DEFAULT_SETTINGS.contacts)) if (patch.contacts[k] != null) next.contacts[k] = clean(patch.contacts[k], 200) || '';
   const name = clean(patch.companyName, 80) || c.name;
   await query('UPDATE companies SET settings = $2, name = $3 WHERE id = $1', [companyId, next, name]);
@@ -192,12 +194,31 @@ export async function updatePerson(companyId, personId, patch, actor) {
   return one('SELECT id, name, email, title, department, access, status FROM people WHERE id = $1', [personId]);
 }
 
-export async function inviteLink(companyId, personId, origin) {
-  const p = await one("SELECT id, status FROM people WHERE id = $1 AND company_id = $2", [personId, companyId]);
+/** Creates an invite (or, for someone who already joined, a password reset) link; optionally emails it. */
+export async function inviteLink(companyId, personId, origin, { send = false } = {}) {
+  const p = await one(`SELECT p.id, p.name, p.email, p.status, (p.password_hash IS NOT NULL) AS joined, c.name AS company_name
+                       FROM people p JOIN companies c ON c.id = p.company_id WHERE p.id = $1 AND p.company_id = $2`, [personId, companyId]);
   if (!p) throw new UserError('Person not found.', 404);
   if (p.status !== 'Active') throw new UserError('This person is marked as exited.');
-  const t = await createInvite(personId);
-  return `${origin}/join?token=${encodeURIComponent(t)}`;
+  const t = await createInvite(personId, p.joined ? 72 : undefined);
+  const link = `${origin}/join?token=${encodeURIComponent(t)}`;
+  const out = { link, reset: p.joined, expires: p.joined ? '3 days' : '14 days' };
+  if (send) {
+    const r = await sendInviteEmail({ person: p, companyName: p.company_name, link, reset: p.joined });
+    Object.assign(out, { emailed: r.ok, emailError: r.error });
+  }
+  return out;
+}
+
+/** Emails a fresh invite to everyone active who hasn't set a password yet. */
+export async function inviteAllPending(companyId, origin) {
+  const rows = await query("SELECT id FROM people WHERE company_id = $1 AND status = 'Active' AND password_hash IS NULL ORDER BY name LIMIT 300", [companyId]);
+  let sent = 0; const failed = [];
+  for (const r of rows) {
+    const out = await inviteLink(companyId, r.id, origin, { send: true });
+    if (out.emailed) sent++; else failed.push(out.emailError);
+  }
+  return { total: rows.length, sent, failed: failed.length, error: failed[0] || null };
 }
 
 export async function audit(companyId, personId, action, detail) {

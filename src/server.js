@@ -8,6 +8,8 @@ import * as co from './services/company.js';
 import * as pol from './services/policies.js';
 import * as work from './services/work.js';
 import { csvToPeople, CSV_TEMPLATE } from './lib/csv.js';
+import { mailEnabled, mailProvider, rememberOrigin } from './lib/mailer.js';
+import { sendInviteEmail } from './services/notify.js';
 
 const app = express();
 app.set('trust proxy', 1); // Render / any reverse proxy → correct req.ip and https detection
@@ -37,7 +39,7 @@ app.use(auth.loadUser);
 
 // ---------- pages ----------
 app.get('/', (req, res) => (req.user ? res.redirect(req.user.access === 'hr' ? '/admin' : '/app') : page('index.html')(req, res)));
-app.get(['/login', '/signup', '/join'], (req, res) => (req.user && req.path !== '/join' ? res.redirect('/app') : page('auth.html')(req, res)));
+app.get(['/login', '/signup', '/join', '/forgot'], (req, res) => (req.user && req.path !== '/join' ? res.redirect('/app') : page('auth.html')(req, res)));
 app.get('/app', (req, res) => (req.user ? page('app.html')(req, res) : res.redirect('/login')));
 app.get('/admin', (req, res) => (!req.user ? res.redirect('/login') : req.user.access !== 'hr' ? res.redirect('/app') : page('admin.html')(req, res)));
 app.get('/vendor/chart.js', (_, res) => res.sendFile(fileURLToPath(new URL('../node_modules/chart.js/dist/chart.umd.min.js', import.meta.url))));
@@ -51,7 +53,9 @@ const ctxOf = (u) => ({
   company: { id: u.company_id, name: u.company_name, settings: u.settings },
 });
 const origin = (req) => process.env.PUBLIC_URL?.replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`;
+app.use((req, _res, next) => { if (req.user) rememberOrigin(origin(req)); next(); }); // base URL for links in notification emails (signed-in requests only, never health checks)
 const loginLimiter = auth.rateLimit({ windowMs: 15 * 60_000, max: 10, key: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`, message: 'Too many login attempts. Try again in 15 minutes.' });
+const forgotLimiter = auth.rateLimit({ windowMs: 60 * 60_000, max: 5, key: (req) => `${req.ip}:forgot`, message: 'Too many reset requests. Try again in an hour.' });
 const signupLimiter = auth.rateLimit({ windowMs: 60 * 60_000, max: 5, message: 'Too many sign-ups from this network. Try again later.' });
 const chatLimiter = auth.rateLimit({ windowMs: 60_000, max: 20, key: (req) => req.user?.id || req.ip, message: 'You are sending messages too fast. Wait a few seconds.' });
 
@@ -74,6 +78,22 @@ app.post('/api/auth/login', loginLimiter, wrap(async (req, res) => {
   res.json({ ok: true, redirect: p.access === 'hr' ? '/admin' : '/app' });
 }));
 
+app.get('/api/auth/options', (_, res) => res.json({ email: mailEnabled() }));
+
+// Forgot password: always answers the same way, so it can't be used to check who has an account.
+app.post('/api/auth/forgot', forgotLimiter, wrap(async (req, res) => {
+  if (!mailEnabled()) return res.status(400).json({ error: 'Password reset by email is not set up here. Ask your HR team for a reset link.' });
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const { one } = await import('./db/pg.js');
+  const p = await one(`SELECT p.id, p.name, p.email, c.name AS company_name FROM people p JOIN companies c ON c.id = p.company_id
+                       WHERE lower(p.email) = $1 AND p.status = 'Active' AND p.password_hash IS NOT NULL`, [email]);
+  if (p) {
+    const t = await auth.createInvite(p.id, 2);
+    await sendInviteEmail({ person: p, companyName: p.company_name, link: `${origin(req)}/join?token=${encodeURIComponent(t)}`, reset: true });
+  }
+  res.json({ ok: true, message: 'If that email has an account, a reset link is on its way. It works for 2 hours.' });
+}));
+
 app.post('/api/auth/logout', wrap(async (req, res) => {
   await auth.destroySession(auth.readCookie(req));
   auth.clearSessionCookie(res);
@@ -83,7 +103,7 @@ app.post('/api/auth/logout', wrap(async (req, res) => {
 app.get('/api/join', wrap(async (req, res) => {
   const inv = await auth.findInvite(String(req.query.token || ''));
   if (!inv) return res.status(404).json({ error: 'This invite link is invalid or has expired. Ask your HR team for a new one.' });
-  res.json({ name: inv.name, email: inv.email, company: inv.company_name });
+  res.json({ name: inv.name, email: inv.email, company: inv.company_name, reset: inv.joined });
 }));
 app.post('/api/join', signupLimiter, wrap(async (req, res) => {
   const err = auth.validatePassword(req.body?.password);
@@ -143,7 +163,7 @@ app.get('/api/health', wrap(async (_, res) => res.json({ ok: true, db: await dbK
 
 // ---------- HR console ----------
 const hr = auth.requireAccess('hr');
-app.get('/api/admin/overview', hr, wrap(async (req, res) => res.json({ ...(await co.overview(req.user.company_id)), dbPersistent: (await dbKind()) === 'postgres' })));
+app.get('/api/admin/overview', hr, wrap(async (req, res) => res.json({ ...(await co.overview(req.user.company_id)), dbPersistent: (await dbKind()) === 'postgres', mailEnabled: mailEnabled() })));
 
 app.get('/api/admin/people', hr, wrap(async (req, res) => res.json(await co.listPeople(req.user.company_id))));
 app.post('/api/admin/people', hr, wrap(async (req, res) => {
@@ -161,7 +181,13 @@ app.post('/api/admin/people/import', hr, wrap(async (req, res) => {
 app.get('/api/admin/people/template.csv', hr, (_, res) => res.type('text/csv').attachment('peopleos-employees.csv').send(CSV_TEMPLATE));
 app.patch('/api/admin/people/:id', hr, wrap(async (req, res) => res.json(await co.updatePerson(req.user.company_id, req.params.id, req.body || {}, req.user))));
 app.get('/api/admin/people/:id/leave', hr, wrap(async (req, res) => res.json({ balances: await work.balances(req.params.id), requests: await work.myLeave(req.params.id, 10) })));
-app.post('/api/admin/people/:id/invite', hr, wrap(async (req, res) => res.json({ link: await co.inviteLink(req.user.company_id, req.params.id, origin(req)) })));
+app.post('/api/admin/people/:id/invite', hr, wrap(async (req, res) => res.json(await co.inviteLink(req.user.company_id, req.params.id, origin(req), { send: !!req.body?.send }))));
+app.post('/api/admin/people/invite-all', hr, wrap(async (req, res) => {
+  if (!mailEnabled()) return res.status(400).json({ error: 'Email is not set up on this server.' });
+  const out = await co.inviteAllPending(req.user.company_id, origin(req));
+  await co.audit(req.user.company_id, req.user.id, 'people.invite_all', out);
+  res.json(out);
+}));
 
 app.get('/api/admin/policies', hr, wrap(async (req, res) => res.json(await pol.listPolicies(req.user.company_id))));
 app.post('/api/admin/policies', hr, wrap(async (req, res) => {
@@ -179,7 +205,7 @@ app.patch('/api/admin/tickets/:id', hr, wrap(async (req, res) => res.json(await 
 
 app.get('/api/admin/settings', hr, wrap(async (req, res) => {
   const c = await co.getCompany(req.user.company_id);
-  res.json({ companyName: c.name, ...co.settingsOf(c) });
+  res.json({ companyName: c.name, ...co.settingsOf(c), mailEnabled: mailEnabled() });
 }));
 app.put('/api/admin/settings', hr, wrap(async (req, res) => res.json(await co.updateSettings(req.user.company_id, req.body || {}))));
 
@@ -199,5 +225,6 @@ app.listen(PORT, async () => {
   const kind = await dbKind();
   console.log(`\n  PeopleOS running → http://localhost:${PORT}`);
   console.log(`  Database: ${kind}${kind === 'postgres' ? '' : '  (local only — set DATABASE_URL to a Postgres database for production)'}`);
+  console.log(`  Email: ${mailProvider() || 'off (set BREVO_API_KEY + MAIL_FROM to send invites and notifications)'}`);
   console.log(`  LLM: ${provider}${provider === 'offline' ? ' (no API key — agents use deterministic planners)' : ` / ${model}`}\n`);
 });

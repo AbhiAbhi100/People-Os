@@ -51,15 +51,16 @@ export async function sessionUser(t) {
   return row;
 }
 
-export async function createInvite(personId) {
+/** Single-use link to set a password: invites last 14 days, password resets 2 hours. */
+export async function createInvite(personId, hours = INVITE_DAYS * 24) {
   const t = token();
   await query('DELETE FROM invites WHERE person_id = $1 AND used_at IS NULL', [personId]);
-  await query('INSERT INTO invites (token_hash, person_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))', [sha(t), personId, INVITE_DAYS]);
+  await query('INSERT INTO invites (token_hash, person_id, expires_at) VALUES ($1, $2, now() + make_interval(hours => $3))', [sha(t), personId, hours]);
   return t;
 }
 export async function findInvite(t) {
   if (!t) return null;
-  return one(`SELECT i.person_id, p.name, p.email, c.name AS company_name
+  return one(`SELECT i.person_id, p.name, p.email, c.name AS company_name, (p.password_hash IS NOT NULL) AS joined
               FROM invites i JOIN people p ON p.id = i.person_id JOIN companies c ON c.id = p.company_id
               WHERE i.token_hash = $1 AND i.used_at IS NULL AND i.expires_at > now() AND p.status = 'Active'`, [sha(t)]);
 }
@@ -68,6 +69,7 @@ export async function consumeInvite(t, password) {
   if (!inv) return null;
   await query('UPDATE people SET password_hash = $1 WHERE id = $2', [await hashPassword(password), inv.person_id]);
   await query('UPDATE invites SET used_at = now() WHERE token_hash = $1', [sha(t)]);
+  if (inv.joined) await query('DELETE FROM sessions WHERE person_id = $1', [inv.person_id]); // a reset logs out other devices
   return inv.person_id;
 }
 
