@@ -3,7 +3,10 @@
     "peopleos": {
       "command": "node",
       "args": ["--no-warnings", "/ABSOLUTE/PATH/TO/peopleos/src/mcp/server.js"],
-      "env": { "PEOPLEOS_USER": "E1001" }
+      "env": {
+        "PEOPLEOS_EMAIL": "you@yourcompany.com",
+        "DATABASE_URL": "postgres://user:password@host/db"
+      }
     }
   }
 }

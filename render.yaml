@@ -5,6 +5,12 @@ services:
     plan: free
     buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /api/config
-    # No env vars needed: without an LLM key the app runs in offline mode.
-    # To use a real model, add ONE key in the Render dashboard → Environment (see .env.example).
+    healthCheckPath: /api/health
+    envVars:
+      # Postgres connection string (a free Neon database works). Without it, data lives
+      # on Render's temporary disk and is wiped on every restart or redeploy.
+      - key: DATABASE_URL
+        sync: false
+      # Optional: an AI key turns on free-form questions. Without one the app uses rules.
+      - key: GEMINI_API_KEY
+        sync: false
