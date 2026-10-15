@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: peopleos
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/config
+    # No env vars needed: without an LLM key the app runs in offline mode.
+    # To use a real model, add ONE key in the Render dashboard → Environment (see .env.example).
