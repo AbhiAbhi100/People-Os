@@ -113,7 +113,7 @@ Node 22.13+. Without an AI key the agents use deterministic rules (common phrasi
 3. Optional: `PUBLIC_URL=https://your-app.onrender.com` so links in emails use the right domain.
 4. Optional, for email: make a free [Brevo](https://www.brevo.com) account, verify your sender address (Senders → Add a sender, a Gmail address works), create an API key (SMTP & API → API keys), then set `BREVO_API_KEY` and `MAIL_FROM=Your Company HR <you@gmail.com>`. Render's free plan blocks SMTP, which is why PeopleOS sends through Brevo's HTTP API.
 
-Tables are created on first boot. Without `DATABASE_URL` the app still runs, but Render's free disk is wiped on every restart, and the HR console shows a warning saying so.
+Tables are created on first boot. `DATABASE_URL` is required on Render's free plan: the embedded database used for local runs needs about 500 MB of RAM, more than the free instance has, so the deploy fails without it (the log says so).
 
 | Variable | Purpose |
 |---|---|

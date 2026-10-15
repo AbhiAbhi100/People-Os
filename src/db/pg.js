@@ -40,6 +40,11 @@ async function connect() {
       close: () => pool.end(),
     };
   }
+  if (process.env.RENDER) {
+    // The embedded database needs ~500 MB of RAM, more than Render's free instance has: the deploy would crash.
+    console.error('\n  DATABASE_URL is not set. On Render, add a Postgres connection string (a free Neon database works)');
+    console.error('  under Environment → DATABASE_URL. The embedded database needs more memory than the free plan has.\n');
+  }
   const { PGlite } = await import('@electric-sql/pglite');
   const { types } = await import('@electric-sql/pglite');
   const dir = process.env.PEOPLEOS_DB === 'memory'
