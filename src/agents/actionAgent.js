@@ -11,7 +11,7 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { tools, callTool } from '../tools/registry.js';
-import { getChatModel, isOffline, textOf } from '../llm/provider.js';
+import { withModelFallback, isOffline, textOf } from '../llm/provider.js';
 import { parseDateRange, iso, TODAY } from '../lib/dates.js';
 
 const ALLOWED = ['get_leave_balance', 'apply_leave', 'raise_ticket', 'get_my_tickets', 'get_profile', 'get_team'];
@@ -49,8 +49,7 @@ function langchainTools(ctx, tracer, scratch) {
   });
 }
 
-function buildReactGraph(model, lcTools, scratch, tracer) {
-  const bound = model.bindTools(lcTools);
+function buildReactGraph(bound, lcTools, scratch, tracer) {
   return new StateGraph(MessagesAnnotation)
     .addNode('agent', async (s) => {
       const ai = await bound.invoke(s.messages);
@@ -67,10 +66,10 @@ function buildReactGraph(model, lcTools, scratch, tracer) {
 }
 
 async function llmLoop({ query, ctx, tracer }) {
-  const model = await getChatModel();
   const scratch = { proposal: null, cards: [] };
   const lcTools = langchainTools(ctx, tracer, scratch);
-  const graph = buildReactGraph(model, lcTools, scratch, tracer);
+  const bound = await withModelFallback((m) => m.bindTools(lcTools)); // main model, backup model if overloaded
+  const graph = buildReactGraph(bound, lcTools, scratch, tracer);
   const system = `You are the Action agent of an HR copilot, acting for ${ctx.user.name} (${ctx.user.id}, access=${ctx.access}).
 Today is ${iso(TODAY())} (${TODAY().toLocaleDateString('en-IN', { weekday: 'long' })}).
 Check data before acting (e.g. balance before applying). Resolve relative dates yourself to YYYY-MM-DD.

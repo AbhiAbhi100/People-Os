@@ -34,15 +34,15 @@ const usageHandler = {
 };
 
 const TIMEOUT = +(env.LLM_TIMEOUT_MS || 30000);
-let cached = null;
+// When the main model is overloaded (503) or rate-limited (429), LangChain retries once and then
+// switches to a second, lighter model via `.withFallbacks()`. Set LLM_FALLBACK_MODEL="" to disable.
+const FALLBACK_DEFAULTS = { gemini: 'gemini-3.5-flash-lite', anthropic: '', openai: '' };
+const cache = new Map();
 
-/** Returns a LangChain BaseChatModel for the configured provider (null when offline). */
-export async function getChatModel() {
-  const { provider, model } = providerInfo();
-  if (provider === 'offline') return null;
-  const key = `${provider}:${model}:${env.OPENAI_BASE_URL || ''}`;
-  if (cached?.key === key) return cached.model;
-  const common = { model, temperature: 0, maxRetries: 1, callbacks: [usageHandler] };
+async function makeModel(provider, model) {
+  const key = `${provider}:${model}:${env.OPENAI_BASE_URL || ''}:${env.GEMINI_BASE_URL || ''}`;
+  if (cache.has(key)) return cache.get(key);
+  const common = { model, temperature: 0, maxRetries: +(env.LLM_MAX_RETRIES ?? 1), callbacks: [usageHandler] };
   let m;
   if (provider === 'anthropic') {
     const { ChatAnthropic } = await import('@langchain/anthropic');
@@ -58,8 +58,30 @@ export async function getChatModel() {
   } else {
     throw new Error(`Unknown LLM_PROVIDER "${provider}"`);
   }
-  cached = { key, model: m };
+  cache.set(key, m);
   return m;
+}
+
+/** Returns a LangChain BaseChatModel for the configured provider (null when offline). */
+export async function getChatModel() {
+  const { provider, model } = providerInfo();
+  return provider === 'offline' ? null : makeModel(provider, model);
+}
+
+/** The backup model used when the main one is overloaded (null if none). */
+export async function getFallbackModel() {
+  const { provider, model } = providerInfo();
+  if (provider === 'offline') return null;
+  const fb = env.LLM_FALLBACK_MODEL ?? FALLBACK_DEFAULTS[provider] ?? '';
+  return fb && fb !== model ? makeModel(provider, fb) : null;
+}
+
+/** Applies the same wrapping (structured output, bound tools…) to main + fallback model. */
+export async function withModelFallback(wrap) {
+  const main = await getChatModel();
+  if (!main) throw new Error('No LLM configured (offline mode)');
+  const fb = await getFallbackModel();
+  return fb ? wrap(main).withFallbacks([wrap(fb)]) : wrap(main);
 }
 
 /**
@@ -67,11 +89,9 @@ export async function getChatModel() {
  * (Groq, Ollama…) are most reliable with function calling, so we pick that method for them.
  */
 export async function structuredModel(schema, name = 'output') {
-  const model = await getChatModel();
-  if (!model) throw new Error('No LLM configured (offline mode)');
   const { provider } = providerInfo();
   const method = env.STRUCTURED_METHOD || (provider === 'openai' && env.OPENAI_BASE_URL ? 'functionCalling' : undefined);
-  return model.withStructuredOutput(schema, { name, ...(method ? { method } : {}) });
+  return withModelFallback((m) => m.withStructuredOutput(schema, { name, ...(method ? { method } : {}) }));
 }
 
 const toMessages = (system, messages) => [
