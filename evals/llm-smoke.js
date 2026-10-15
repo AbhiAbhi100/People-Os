@@ -57,6 +57,17 @@ check('career narrative comes from the model, numbers from the scorer', async ()
   assert.ok(r.results[0].career.tasks.length > 0);
 });
 
+if (provider === 'gemini') check('overloaded model (503) falls back to the backup model, not to rules', async () => {
+  const saved = { ...process.env };
+  Object.assign(process.env, { LLM_MODEL: 'busy-model', LLM_FALLBACK_MODEL: 'mock', LLM_MAX_RETRIES: '0' });
+  try {
+    const r = await turn('Can I carry forward leaves and my balance?', 'e');
+    assert.ok(!steps.some((s) => /rule router/.test(s.label)), 'should not have dropped to the rule router');
+    assert.deepEqual(r.route.tasks.map((t) => t.agent), ['policy', 'action']);
+    assert.ok(mockLog.includes('503:busy'), 'main model should have been tried first');
+  } finally { process.env.LLM_MODEL = saved.LLM_MODEL; delete process.env.LLM_FALLBACK_MODEL; delete process.env.LLM_MAX_RETRIES; }
+});
+
 let ok = 0;
 for (const [name, fn] of checks) {
   try { await fn(); ok++; console.log(`✓ ${name}`); } catch (e) { console.log(`✗ ${name}\n   ${e.message}`); }

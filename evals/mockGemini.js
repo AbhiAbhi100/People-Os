@@ -25,6 +25,11 @@ export function startMockGemini(port = 4998) {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
+        if (req.url.includes('busy')) { // simulate Google's "model overloaded" error
+          log.push('503:busy');
+          res.writeHead(503, { 'content-type': 'application/json' });
+          return res.end(JSON.stringify({ error: { code: 503, message: 'This model is currently experiencing high demand.', status: 'UNAVAILABLE' } }));
+        }
         const j = JSON.parse(b);
         let parts;
         const schema = j.generationConfig?.responseSchema;
