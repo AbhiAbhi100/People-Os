@@ -5,11 +5,15 @@
 // and the orchestrator offers a human handoff.
 import { z } from 'zod';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { policyRetriever, formatDocs } from '../lib/retriever.js';
-import { tokenize, policyIndex } from '../lib/bm25.js';
+import { retrieverFor, formatDocs } from '../lib/retriever.js';
+import { policyIndexFor } from '../services/policies.js';
+import { settingsOf } from '../services/company.js';
+import { tokenize } from '../lib/bm25.js';
 import { isOffline, structuredModel } from '../llm/provider.js';
 
-const MIN_SCORE = 2.5;
+// BM25 scores shrink when a company has only a few sections, so a fixed cut-off is scaled down for small
+// corpora; the answerability check below is what actually stops guessing.
+const minScore = (n) => (n < 30 ? 0.5 : 2.5);
 
 const AnswerSchema = z.object({
   answer: z.string().describe('2-5 sentence answer in markdown, with inline citations like [leave-policy#parental-leave]'),
@@ -18,7 +22,7 @@ const AnswerSchema = z.object({
 });
 
 const prompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are the HR Policy agent for an Indian fintech. Answer ONLY from the SOURCES. Be concise and warm.
+  ['system', `You are the HR policy assistant for {company}. Answer ONLY from the SOURCES (this company's own policy documents). Be concise and warm.
 Cite source ids inline in square brackets, exactly as given. If the sources don't contain the answer, set answerable to false.
 Never invent numbers, dates or rules.`],
   ['human', 'SOURCES:\n{context}\n\nQUESTION: {question}'],
@@ -32,24 +36,30 @@ async function getChain() {
 const cite = (d) => ({ id: d.metadata.id, title: `${d.metadata.doc} › ${d.metadata.heading}`, snippet: d.pageContent.slice(0, 220) });
 
 /** "leave policy", "wfh policy?" → a short overview of that whole document. */
-function overview(query) {
+function overview(query, index) {
   const m = query.toLowerCase().trim().match(/^(?:what(?:'s| is) (?:the |our )?|tell me (?:about )?(?:the )?|explain (?:the )?)?([a-z &/-]{2,30}?)\s+polic(?:y|ies)\??$/);
   if (!m) return null;
   const topic = m[1].replace(/\bwfh\b/, 'work from home').replace(/\bposh\b/, 'harassment');
-  const chunks = policyIndex.chunks.filter((c) => c.doc.toLowerCase().includes(topic) || topic.split(' ').every((w) => c.doc.toLowerCase().includes(w)));
+  const chunks = index.chunks.filter((c) => c.doc.toLowerCase().includes(topic) || topic.split(' ').every((w) => c.doc.toLowerCase().includes(w)));
   if (!chunks.length) return null;
   const doc = chunks[0].doc;
   const text = `**${doc}** covers:\n\n${chunks.filter((c) => c.doc === doc).map((c) => `• **${c.heading}** — ${c.text.split(/(?<=\.)\s/)[0]}`).join('\n')}\n\nAsk me about any of these for the details.`;
   return { agent: 'policy', confidence: 0.9, text, citations: chunks.filter((c) => c.doc === doc).slice(0, 3).map((c) => ({ id: c.id, title: `${c.doc} › ${c.heading}`, snippet: c.text.slice(0, 220) })) };
 }
 
-export async function policyAgent({ query, tracer }) {
-  const ov = overview(query);
+export async function policyAgent({ query, ctx, tracer }) {
+  const index = await policyIndexFor(ctx.company.id);
+  if (!index.chunks.length) {
+    tracer.step('policy', 'tool', 'company has no policy documents yet');
+    const hr = settingsOf(ctx.company).contacts.hr;
+    return { agent: 'policy', confidence: 0.2, text: `Your HR team hasn't uploaded any policy documents to PeopleOS yet, so I can't answer policy questions reliably.${hr ? ` You can reach HR at **${hr}**.` : ''}` };
+  }
+  const ov = overview(query, index);
   if (ov) { tracer.step('policy', 'tool', 'overview of the whole policy document'); return ov; }
-  const docs = await policyRetriever.invoke(query);
+  const docs = await retrieverFor(ctx.company.id).invoke(query);
   tracer.step('policy', 'tool', `retriever → ${docs.length} sections`, docs.map((d) => `${d.metadata.id} (score ${d.metadata.score})`).join('\n'));
 
-  if (!docs.length || docs[0].metadata.score < MIN_SCORE) {
+  if (!docs.length || docs[0].metadata.score < minScore(index.chunks.length)) {
     return { agent: 'policy', confidence: 0.2, text: "I couldn't find this in our HR policies, so I won't guess.", citations: [] };
   }
 
@@ -72,7 +82,7 @@ export async function policyAgent({ query, tracer }) {
   }
 
   const chain = await getChain();
-  const out = await chain.invoke({ context: formatDocs(docs), question: query });
+  const out = await chain.invoke({ context: formatDocs(docs), question: query, company: ctx.company.name });
   tracer.step('policy', 'llm', `LCEL chain: prompt | model.withStructuredOutput → answerable=${out.answerable}`);
   const used = docs.filter((d) => (out.used_ids || []).includes(d.metadata.id));
   return {

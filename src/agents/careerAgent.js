@@ -3,14 +3,16 @@
 // the LLM, if present, only writes the personal narrative on top of the numbers.
 import { z } from 'zod';
 import { callTool } from '../tools/registry.js';
+import { ROLES } from '../lib/roleLibrary.js';
 import { chatJSON, isOffline } from '../llm/provider.js';
 
-const ROLE_HINT = /(software engineer|engineering manager|data analyst|support associate|hr business partner|relationship manager|compliance analyst)/i;
 
 export async function careerAgent({ query, ctx, tracer }) {
-  const role = query.match(ROLE_HINT)?.[1];
+  // a role named in the question ("…of a Support Associate…"), otherwise the user's own title
+  const role = ROLES.find((r) => query.toLowerCase().includes(r.toLowerCase()))
+    || query.match(/(?:as an?|of an?|for an?)\s+([a-z][a-z /&-]{2,40}?)(?:\?|$| can| do| in| role| job)/i)?.[1];
   const r = await callTool('career_insights', role ? { role } : {}, ctx);
-  if (r.error) return { agent: 'career', confidence: 0.4, text: `${r.error} I have task models for: ${r.available_roles.join(', ')}.` };
+  if (r.error) return { agent: 'career', confidence: 0.4, text: `${r.error} I have task models for: ${r.available_roles.join(', ')}. Ask HR to set your job title, or ask about one of these roles.` };
   tracer.step('career', 'tool', `career_insights(${r.role}) → ${r.tasks.length} tasks scored`, r.tasks.map((t) => `${t.score.toString().padStart(3)}  ${t.bucket.padEnd(16)} ${t.task}`).join('\n'));
 
   const by = (b) => r.tasks.filter((t) => t.bucket === b);

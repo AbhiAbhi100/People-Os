@@ -25,13 +25,15 @@ const INJECTION = /ignore (all |any |the )?(previous|prior|above) (instructions|
 
 const RULES = {
   action: [/\b(apply|book|take|mark|cancel)\b.*\b(leave|off|chutti)\b|\bleave (tomorrow|today|on|from)\b/, 3,
+    /pending approvals?|\b(approve|reject)\b.*(#?\d+|leave|request)|team (leave )?requests|waiting for my (approval|decision)|cancel (my )?(leave|request)/, 4,
     /\b(want|need|take|chahiye|leni|lena)\b.{0,25}\b(leave|chutti|chhutti|off)\b|\b(leave|chutti|chhutti)\b.{0,25}\b(chahiye|leni|lena)\b/, 3,
-    /\b(raise|open|log|create)\b.*\bticket\b|not working|broken|stopped working|isn'?t working|\bcrash|not received|not credited|not getting|still pending|issue with|problem with/, 3,
+    /\b(raise|open|log|create)\b.*\bticket\b|not working|broken|stopped working|isn'?t working|\bcrash|not received|not credited|not getting|still pending|issue with|problem with|\b(wrong|incorrect|mismatch|missing|error in|not updated|isn'?t updated)\b|\bneed (a |an )?(new )?(laptop|monitor|mouse|access|id card|headset)/, 3,
     /\b(i am|i'm|im|feeling)\s+(sick|unwell|ill)\b|\bfever\b|\bbimar/, 3,
     /\b(my|leave) balance|leaves? (left|remaining)|how (much|many) (leave|leaves|chutti)\b.*\b(have|had|left|remaining|bachi|baki)\b|leaves? (do )?i have|\bi (had|have|got)\b.{0,12}\bleaves?\b|kitni (leave|chutti)|my tickets|ticket status|my manager|my hrbp|my profile|my team|my reports|who.*on leave/, 3],
   data: [/headcount|attrition|churn|turnover|trend|over time|by (department|location|level|role|month|year|category|gender)|breakdown|split|average|avg|median|percentage|ratio|distribution|chart|plot|graph|analytics|dashboard/, 2,
     /how many (employees|people|joiners|hires|exits|tickets)|hires|hiring|joiners|engagement|tenure|resolution time|open tickets|diversity|women|exits|leaving|salary (by|per|across)/, 2],
-  policy: [/policy|policies|allowed|can i|am i eligible|eligib|entitle|how many (days|leaves) (do|can|will)|rule|reimburs|allowance|insurance|maternity|paternity|parental|bereavement|wfh|work from home|hybrid|carry forward|encash|notice period|claim|limit|esop|medical certificate|holiday|learning budget|another city|abroad|grievance|posh|harassment|ethics|counsell?ing|\beap\b|complaint process/, 2],
+  policy: [/policy|policies|allowed|can i|am i eligible|eligib|entitle|how many (days|leaves) (do|can|will)|rule|reimburs|allowance|insurance|maternity|paternity|parental|bereavement|wfh|work from home|hybrid|carry forward|encash|notice period|claim|limit|esop|medical certificate|holiday|learning budget|another city|abroad|grievance|posh|harassment|ethics|counsell?ing|\beap\b|complaint process/, 2,
+    /how many (sick |casual |earned |annual |paid )?(days|leaves?)\b.*\b(get|allowed|entitled|per year|in a year)|\b(sick|annual|casual|earned) (days|leave) (do|can|per)|days of leave|entitlement|probation|notice period|resign|appraisal|bonus|holiday list/, 2],
   career: [/career|automat|\bai\b.*(job|role|task|replace|take over|handle)|my (job|role) (future|safe)|which tasks|upskill|skills? (to|should)|grow|future of work|next role|career path/, 3],
 };
 
@@ -73,10 +75,10 @@ const RouteSchema = z.object({
 async function routeLLM(message, memory) {
   const hist = memory.history.slice(-4).map((h) => `user: ${h.user}\nassistant(${h.agents}): ${h.summary}`).join('\n');
   const out = await chatJSON({
-    system: `You are the router of an enterprise HR copilot. Specialists:
+    system: `You are the router of PeopleOS, an HR copilot used inside a company. Specialists:
 - policy: questions about HR rules/entitlements (leave rules, WFH, reimbursement, insurance, POSH, benefits).
 - data: analytics over HR data (headcount, attrition, hiring trends, engagement, tickets, leave usage, diversity, salary). Charts.
-- action: do things or fetch the user's own records (leave balance, apply leave, raise/list tickets, my manager, my team).
+- action: do things or fetch the user's own records (leave balance, apply/cancel leave, raise/list tickets, my manager, my team; managers: pending approvals, approve/reject leave).
 - career: which tasks of a role AI can automate vs human-led, skills to grow, career paths.
 Split multi-part requests into ordered sub-tasks, each self-contained (resolve pronouns using the history).
 Return no tasks for greetings or off-topic messages.`,

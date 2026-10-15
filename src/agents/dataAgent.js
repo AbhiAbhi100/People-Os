@@ -4,11 +4,12 @@
 import { z } from 'zod';
 import { callTool } from '../tools/registry.js';
 import { GuardError } from '../lib/sqlGuard.js';
-import { SCHEMA } from '../db/index.js';
+import { schemaFor, sandboxFor } from '../lib/sandbox.js';
+import { TODAY } from '../lib/dates.js';
 import { chatJSON, isOffline } from '../llm/provider.js';
 
 const ACTIVE = "status='Active'";
-const TENURE = "ROUND(AVG((julianday('2026-10-13') - julianday(join_date)) / 365.0), 1)";
+const TENURE = "ROUND(AVG((julianday('now') - julianday(join_date)) / 365.0), 1)";
 // semantic layer: metric -> how to compute it
 const METRICS = {
   attrition: { re: /attrition|churn|exits?\b|left|leaving|turnover/, label: 'attrition_pct', expr: "ROUND(100.0 * SUM(status='Exited') / COUNT(*), 1)", from: 'employees', where: null },
@@ -20,7 +21,7 @@ const METRICS = {
   hires: { re: /hire|hiring|joiner|joined|onboard/, label: 'hires', expr: 'COUNT(*)', from: 'employees', where: null, defaultDim: 'year' },
   resolution: { re: /resolution|resolve|sla|turnaround/, label: 'avg_resolution_days', expr: "ROUND(AVG(julianday(t.resolved_at) - julianday(t.created_at)), 1)", from: 'tickets', where: "t.status='Resolved'", defaultDim: 'category' },
   tickets: { re: /ticket|helpdesk|issues raised/, label: 'tickets', expr: 'COUNT(*)', from: 'tickets', where: null, defaultDim: 'category' },
-  leave: { re: /leave|time off|absen/, label: 'leave_days', expr: 'SUM(l.days)', from: 'leave_requests l JOIN employees e USING(employee_id)', where: null, defaultDim: 'month' },
+  leave: { re: /leave|time off|absen/, label: 'leave_days', expr: 'SUM(l.days)', from: 'leave_requests l JOIN employees e USING(employee_id)', where: "l.status='Approved'", defaultDim: 'month' },
   headcount: { re: /headcount|how many|number of (people|employees)|count|employees|strength/, label: 'headcount', expr: 'COUNT(*)', from: 'employees', where: ACTIVE },
 };
 const DIMS = {
@@ -44,10 +45,16 @@ const SqlSchema = z.object({
 const FixSchema = z.object({ sql: z.string().describe('the corrected SQLite SELECT statement') });
 const InsightSchema = z.object({ insight: z.string().describe('2-3 sentence insight with **bold** key numbers') });
 
-const DEPTS = ['Engineering', 'Product', 'Data Science', 'Customer Support', 'Sales', 'Compliance', 'HR', 'Finance', 'Marketing'];
-const LOCS = ['Mumbai', 'Bengaluru', 'Hyderabad', 'Noida', 'Remote'];
+const sqlStr = (v) => `'${String(v).replace(/'/g, "''")}'`;
 
-function compose(q, prev) {
+/** Departments / locations that actually exist in this company, for filters like "in Sales". */
+function knownValues(db) {
+  const list = (col) => db.prepare(`SELECT DISTINCT ${col} AS v FROM employees WHERE ${col} IS NOT NULL AND ${col} <> ''`).all().map((r) => r.v)
+    .sort((a, b) => b.length - a.length); // longest first so "Customer Support" wins over "Support"
+  return { deps: list('department'), locs: list('location') };
+}
+
+function compose(q, prev, known = { deps: [], locs: [] }) {
   const t = q.toLowerCase();
   const follow = prev && /^(now|and|also|what about|same|break|split|only|just|instead|by\b|how about)/.test(t.trim());
   let metric = Object.keys(METRICS).find((k) => k !== 'headcount' && METRICS[k].re.test(t))
@@ -64,15 +71,17 @@ function compose(q, prev) {
   const where = [];
   if (m.where) where.push(m.where);
   const ent = m.from.startsWith('tickets') ? 't' : m.from.startsWith('leave') ? 'e' : null;
-  const col = (c) => (ent === 't' && ['department', 'location', 'level', 'gender', 'role'].includes(c) ? `e.${c}` : c);
-  let from = m.from;
-  if (ent === 't') from = 'tickets t JOIN employees e USING(employee_id)';
-  const dep = DEPTS.find((d) => t.includes(d.toLowerCase())) || (follow && !/all|overall|company/.test(t) ? prev.dep : null);
-  const loc = LOCS.find((l) => t.includes(l.toLowerCase())) || (follow ? prev.loc : null);
-  if (dep && dim !== 'department') where.push(`${col('department')} = '${dep}'`);
-  if (loc && dim !== 'location') where.push(`${col('location')} = '${loc}'`);
-  if (metric === 'tickets' && /\bopen\b/.test(t) && dim !== 'status') where.push("t.status = 'Open'");
-  if (/this year|2026/.test(t) && metric === 'leave') where.push("l.start_date >= '2026-01-01'");
+  // tickets carry only the department (no personal columns), so other people-dimensions fall back to category
+  if (ent === 't' && ['location', 'level', 'gender', 'role', 'reason'].includes(dim)) dim = 'category';
+  const col = (c) => (ent === 't' && c === 'department' ? 't.department' : ent === 'e' && ['department', 'location', 'level', 'gender', 'role'].includes(c) ? `e.${c}` : c);
+  const from = ent === 't' ? 'tickets t' : m.from;
+  const dep = known.deps.find((d) => t.includes(d.toLowerCase())) || (follow && !/all|overall|company/.test(t) ? prev.dep : null);
+  const loc = ent === 't' ? null : known.locs.find((l) => t.includes(l.toLowerCase())) || (follow ? prev.loc : null);
+  if (dep && dim !== 'department') where.push(`${col('department')} = ${sqlStr(dep)}`);
+  if (loc && dim !== 'location') where.push(`${col('location')} = ${sqlStr(loc)}`);
+  if (metric === 'tickets' && /\bopen\b/.test(t) && dim !== 'status') where.push("t.status <> 'Resolved'");
+  const year = String(TODAY().getFullYear());
+  if ((/this year/.test(t) || t.includes(year)) && metric === 'leave') where.push(`l.start_date >= '${year}-01-01'`);
   const exitCount = metric === 'attrition' && (dim === 'reason' || dim === 'year' || dim === 'month');
   if (exitCount) where.push("status='Exited'");
 
@@ -127,16 +136,17 @@ export async function dataAgent({ query, ctx, tracer, session }) {
   const prev = session.lastData;
   let sql, chartHint = 'auto', title = query, plan = null;
 
+  const sandbox = await sandboxFor(ctx);
   if (isOffline()) {
-    plan = compose(query, prev);
+    plan = compose(query, prev, knownValues(sandbox));
     if (!plan) return { agent: 'data', confidence: 0.2, text: "I couldn't map that to a metric I know (headcount, attrition, engagement, hires, tenure, tickets, leave, diversity, salary). Try rephrasing, or connect an LLM for free-form questions." };
     sql = plan.sql;
     tracer.step('data', 'plan', `semantic layer → metric=${plan.metric}, by=${plan.dim || '—'}${plan.dep ? `, dept=${plan.dep}` : ''}${plan.loc ? `, loc=${plan.loc}` : ''}`);
   } else {
     const out = await chatJSON({
-      system: `You are a senior people-analytics engineer. Convert the question into ONE SQLite SELECT over this schema:\n${SCHEMA}\n
+      system: `You are a senior people-analytics engineer. Convert the question into ONE SQLite SELECT over this schema:\n${schemaFor(ctx.access)}\n
 Rules: aggregate where sensible; alias columns in snake_case; ORDER results meaningfully; never use SELECT *; for "current" headcount filter status='Active'.
-The user's access level is "${ctx.access}". ${ctx.access === 'hr' ? '' : 'They CANNOT access salary_lpa or performance_rating: if asked, set refuse to the reason and sql to "".'}
+Use only the tables and columns listed. ${ctx.access === 'hr' ? '' : 'If the question needs data this user cannot see (salary, ratings, engagement, gender, emails, exit reasons, ticket text), set refuse to a short reason and sql to "".'}
 Follow-up questions refer to the previous query if given. Leave refuse as "" when answering.`,
       schema: SqlSchema, name: 'text_to_sql',
       messages: [{ role: 'user', content: `${prev ? `Previous question: ${prev.question}\nPrevious SQL: ${prev.sql}\n\n` : ''}Question: ${query}` }],
@@ -160,7 +170,7 @@ Follow-up questions refer to the previous query if given. Leave refuse as "" whe
       tracer.step('data', 'error', `SQL error: ${e.message}`);
       if (isOffline() || attempts >= 3) return { agent: 'data', confidence: 0.2, text: `I couldn't run that query (${e.message}).`, sql };
       const fix = await chatJSON({ // self-correction loop
-        system: `Fix this SQLite query so it runs. Schema:\n${SCHEMA}`,
+        system: `Fix this SQLite query so it runs. Use only these tables and columns:\n${schemaFor(ctx.access)}`,
         schema: FixSchema, name: 'fixed_sql',
         messages: [{ role: 'user', content: `Question: ${query}\nSQL: ${sql}\nError: ${e.message}` }],
       });
