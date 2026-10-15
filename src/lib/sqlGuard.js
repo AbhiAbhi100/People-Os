@@ -2,9 +2,11 @@
 // 1) statement allow-list (single SELECT/WITH only)
 // 2) role-based column access (salary / ratings only for HR)
 // 3) forced row LIMIT
-// 4) executed on a read-only connection (see db/index.js)
-const BLOCKED = /\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|trigger)\b/i;
-const SENSITIVE = /\b(salary_lpa|performance_rating)\b/i;
+// 4) executed on a per-tenant, per-role, query_only SQLite copy (see lib/sandbox.js)
+import { HR_ONLY_COLUMNS } from './sandbox.js';
+
+const BLOCKED = /\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|trigger|load_extension|sqlite_\w+)\b/i;
+const SENSITIVE = new RegExp(`\\b(${HR_ONLY_COLUMNS.join('|')})\\b`, 'i');
 
 export class GuardError extends Error {
   constructor(msg, code) { super(msg); this.code = code; }
@@ -16,7 +18,7 @@ export function guardSql(sql, access = 'employee') {
   if (q.includes(';')) throw new GuardError('Multiple statements are not allowed.', 'MULTI_STATEMENT');
   if (BLOCKED.test(q.replace(/'[^']*'/g, "''"))) throw new GuardError('Query contains a write/admin keyword.', 'BLOCKED_KEYWORD');
   if (access !== 'hr' && SENSITIVE.test(q))
-    throw new GuardError('Salary and performance data is restricted to HR. Your access level cannot query it.', 'RBAC_DENIED');
+    throw new GuardError('Salary, ratings, engagement, personal details and ticket text are restricted to HR. Your access level cannot query them.', 'RBAC_DENIED');
   if (access !== 'hr' && /\bselect\s+\*\s+from\s+employees\b/i.test(q))
     throw new GuardError('Selecting all employee columns is restricted; ask for specific fields or aggregates.', 'RBAC_DENIED');
   if (!/\blimit\s+\d+\s*$/i.test(q)) q += ' LIMIT 200';
