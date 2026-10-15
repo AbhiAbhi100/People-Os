@@ -3,7 +3,7 @@
 // (e.g. pgvector / MemoryVectorStore.asRetriever()) without touching the agent.
 import { BaseRetriever } from '@langchain/core/retrievers';
 import { Document } from '@langchain/core/documents';
-import { policyIndex } from './bm25.js';
+import { policyIndexFor } from '../services/policies.js';
 
 export class PolicyRetriever extends BaseRetriever {
   lc_namespace = ['peopleos', 'retrievers'];
@@ -11,17 +11,19 @@ export class PolicyRetriever extends BaseRetriever {
   constructor(fields = {}) {
     super(fields);
     this.k = fields.k ?? 4;
+    this.companyId = fields.companyId; // each company only ever searches its own documents
   }
 
   async _getRelevantDocuments(query) {
-    return policyIndex.search(query, this.k).map((h) => new Document({
+    const index = await policyIndexFor(this.companyId);
+    return index.search(query, this.k).map((h) => new Document({
       pageContent: h.text,
       metadata: { id: h.id, doc: h.doc, heading: h.heading, score: h.score },
     }));
   }
 }
 
-export const policyRetriever = new PolicyRetriever({ k: 4 });
+export const retrieverFor = (companyId) => new PolicyRetriever({ k: 4, companyId });
 
 /** Formats retrieved documents as the citation-friendly context block the prompt expects. */
 export const formatDocs = (docs) => docs.map((d) => `[${d.metadata.id}] (${d.metadata.doc} › ${d.metadata.heading})\n${d.pageContent}`).join('\n\n');
