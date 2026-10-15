@@ -9,7 +9,15 @@ const SENSITIVE = [
 ];
 
 export function detectSensitive(text) {
-  return SENSITIVE.find((s) => s.re.test(text)) || null;
+  const hit = SENSITIVE.find((s) => s.re.test(text));
+  if (!hit) return null;
+  // "what is the POSH policy?" is an information request, not a personal report → let the policy agent answer.
+  // Crisis words always go to a human.
+  const crisis = /suicid|self.?harm|end (my|it)|can'?t cope/i.test(text);
+  const personal = /\b(me|my|mine|i|i'm|i am|i was|i've|someone|somebody|he|she|they|him|her|them|mujhe|mere|mera|meri)\b/i.test(text);
+  const informational = /\bpolic(y|ies)\b|\bwhat is\b|\bhow (do|to|can)\b|\bprocess\b|\brules?\b/i.test(text);
+  if (!crisis && informational && !personal) return null;
+  return hit;
 }
 
 export function handoffAgent({ query, ctx, tracer, reason }) {
