@@ -28,7 +28,7 @@ const RULES = {
     /\b(want|need|take|chahiye|leni|lena)\b.{0,25}\b(leave|chutti|chhutti|off)\b|\b(leave|chutti|chhutti)\b.{0,25}\b(chahiye|leni|lena)\b/, 3,
     /\b(raise|open|log|create)\b.*\bticket\b|not working|broken|stopped working|isn'?t working|\bcrash|not received|not credited|not getting|still pending|issue with|problem with/, 3,
     /\b(i am|i'm|im|feeling)\s+(sick|unwell|ill)\b|\bfever\b|\bbimar/, 3,
-    /\b(my|leave) balance|leaves? (left|remaining)|how (much|many) (leave|leaves|chutti)\b.*\b(have|had|left|remaining|bachi|baki)\b|leaves? (do )?i have|kitni (leave|chutti)|my tickets|ticket status|my manager|my hrbp|my profile|my team|my reports|who.*on leave/, 3],
+    /\b(my|leave) balance|leaves? (left|remaining)|how (much|many) (leave|leaves|chutti)\b.*\b(have|had|left|remaining|bachi|baki)\b|leaves? (do )?i have|\bi (had|have|got)\b.{0,12}\bleaves?\b|kitni (leave|chutti)|my tickets|ticket status|my manager|my hrbp|my profile|my team|my reports|who.*on leave/, 3],
   data: [/headcount|attrition|churn|turnover|trend|over time|by (department|location|level|role|month|year|category|gender)|breakdown|split|average|avg|median|percentage|ratio|distribution|chart|plot|graph|analytics|dashboard/, 2,
     /how many (employees|people|joiners|hires|exits|tickets)|hires|hiring|joiners|engagement|tenure|resolution time|open tickets|diversity|women|exits|leaving|salary (by|per|across)/, 2],
   policy: [/policy|policies|allowed|can i|am i eligible|eligib|entitle|how many (days|leaves) (do|can|will)|rule|reimburs|allowance|insurance|maternity|paternity|parental|bereavement|wfh|work from home|hybrid|carry forward|encash|notice period|claim|limit|esop|medical certificate|holiday|learning budget|another city|abroad|grievance|posh|harassment|ethics|counsell?ing|\beap\b|complaint process/, 2],
@@ -136,7 +136,7 @@ async function routerNode(state, config) {
   try {
     tasks = isOffline() ? routeOffline(state.message, memory) : await routeLLM(state.message, memory);
   } catch (e) {
-    tracer.step('orchestrator', 'warn', `LLM router failed (${e.message}) → rule router`);
+    tracer.step('orchestrator', 'warn', `LLM unavailable (${String(e.message).replace(/\s+/g, ' ').slice(0, 120)}) → rule router`);
     tasks = routeOffline(state.message, memory);
   }
   tracer.step('orchestrator', 'route', tasks.length ? `plan: ${tasks.map((t) => t.agent).join(' + ')}` : 'no specialist matched', tasks.map((t) => `${t.agent} ← "${t.query}"`).join('\n'));

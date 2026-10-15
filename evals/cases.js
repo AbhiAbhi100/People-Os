@@ -33,6 +33,7 @@ export const cases = [
   // --- casual / Hinglish phrasing (regressions from the live demo) ---
   { as: 'E1001', q: 'i want a leave', agents: ['action'], contains: ['Which dates'] },
   { as: 'E1001', q: 'how much leave i had', agents: ['action'], contains: ['Earned'], noApproval: true },
+  { as: 'E1001', q: 'i had 5 leaves', agents: ['action'], contains: ['Earned'], noApproval: true },
   { as: 'E1001', q: 'kitni chutti bachi hai', agents: ['action'], contains: ['Casual'], noApproval: true },
   { as: 'E1001', q: 'mujhe kal chutti chahiye', agents: ['action'], approval: 'apply_leave' },
   { as: 'E1001', q: 'i am sick today', agents: ['action'], approval: 'apply_leave' },
