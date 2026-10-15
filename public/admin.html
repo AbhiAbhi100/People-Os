@@ -28,6 +28,9 @@
     <div id="dbWarning" class="warn" hidden>
       <b>Test mode: data will be lost on restart.</b> This server isn't connected to a database yet, so everything you add disappears when it restarts or redeploys. Set <code>DATABASE_URL</code> to a Postgres database (a free Neon database works) before inviting your team.
     </div>
+    <div id="mailNote" class="note" hidden>
+      <b>Email is off.</b> Invites and password resets are shared as links you copy, and nobody gets notified about leave or tickets by email. To turn it on, add <code>BREVO_API_KEY</code> and <code>MAIL_FROM</code> on the server (a free Brevo account works; see the README).
+    </div>
     <div class="stats" id="stats"></div>
     <div class="card">
       <h2>Get your team started</h2>
@@ -40,6 +43,7 @@
     <div class="row">
       <input type="text" id="peopleSearch" placeholder="Search name, email, team…" aria-label="Search people">
       <span class="spacer"></span>
+      <button class="btn" type="button" id="inviteAllBtn" hidden>Email invites</button>
       <button class="btn" type="button" id="importBtn">Import CSV</button>
       <button class="btn primary" type="button" id="addBtn">Add person</button>
     </div>
@@ -107,6 +111,11 @@
           <label class="field">Employee assistance / counselling<input type="text" id="cEap" placeholder="Phone or email"></label>
           <label class="field">Ethics or whistleblower line<input type="text" id="cEthics" placeholder="ethics@company.com"></label>
         </div>
+      </div>
+      <div class="card stack">
+        <h2>Email notifications</h2>
+        <label class="check"><input type="checkbox" id="setEmail"> Email managers about leave requests, employees about decisions and ticket replies, and HR about new tickets</label>
+        <p class="muted small" id="emailHint"></p>
       </div>
       <div class="card stack">
         <h2>Usage</h2>

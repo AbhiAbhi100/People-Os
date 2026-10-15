@@ -18,7 +18,7 @@
   <form class="card stack" id="login" hidden>
     <h1>Log in</h1>
     <label class="field">Work email<input type="email" id="login-email" autocomplete="email" required></label>
-    <label class="field">Password<input type="password" id="login-password" autocomplete="current-password" required></label>
+    <label class="field"><span class="row">Password<span class="spacer"></span><a class="small" href="/forgot" id="forgot-link">Forgot password?</a></span><input type="password" id="login-password" autocomplete="current-password" required></label>
     <button class="btn primary" type="submit">Log in</button>
     <p class="muted small">New company? <a href="/signup">Create a workspace</a>. Employee without a password? Use the invite link from your HR team.</p>
   </form>
@@ -43,6 +43,14 @@
       <label class="field">Choose a password <span class="hint">at least 8 characters</span><input type="password" id="join-password" autocomplete="new-password" minlength="8" required></label>
       <button class="btn primary" type="submit">Set password and continue</button>
     </div>
+  </form>
+
+  <form class="card stack" id="forgot" hidden>
+    <h1>Reset your password</h1>
+    <p class="muted small" id="forgot-sub">Enter your work email and we'll send you a link to choose a new password.</p>
+    <label class="field">Work email<input type="email" id="forgot-email" autocomplete="email" required></label>
+    <button class="btn primary" type="submit">Send reset link</button>
+    <p class="muted small"><a href="/login">Back to log in</a></p>
   </form>
 
   <p class="error" id="error" role="alert" hidden></p>

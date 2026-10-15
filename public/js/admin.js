@@ -1,6 +1,6 @@
 import { $, $$, esc, el, api, toast, topbar, fmtDate, copyText } from './common.js';
 
-let me, people = [];
+let me, people = [], mailOn = false;
 const dlg = $('#dlg'), body = $('#dlgBody');
 
 // ---------- tabs ----------
@@ -31,6 +31,7 @@ const cancelBtn = '<button class="btn" value="cancel" formnovalidate type="submi
 loaders.overview = async () => {
   const o = await api('/api/admin/overview');
   $('#dbWarning').hidden = o.dbPersistent;
+  mailOn = o.mailEnabled; $('#mailNote').hidden = mailOn;
   const s = [
     ['#people', o.people, 'active people'],
     ['#people', o.not_joined, 'haven\'t set a password', o.not_joined > 0],
@@ -46,7 +47,7 @@ loaders.overview = async () => {
   const steps = [
     [o.policies > 0, 'Upload your HR policies', 'Leave, WFH, reimbursement, POSH… PDF or Word files.', '#policies'],
     [o.people > 1, 'Add your people', 'Import a CSV with names, emails, titles and managers.', '#people'],
-    [o.people > 1 && o.not_joined === 0, 'Share invite links', 'Each person sets a password from their link. Send it on email or WhatsApp.', '#people'],
+    [o.people > 1 && o.not_joined === 0, mailOn ? 'Email invites' : 'Share invite links', mailOn ? 'One click on the People page emails everyone a link to set their password.' : 'Each person sets a password from their link. Send it on email or WhatsApp.', '#people'],
     [!!(settings.contacts.ic || settings.contacts.eap), 'Add contacts for sensitive topics', 'Internal Committee and counselling details, so the assistant can point people to them.', '#settings'],
   ];
   $('#checklist').innerHTML = steps.map(([done, title, hint, href]) => `<li class="${done ? 'done' : ''}"><b><a href="${href}">${title}</a></b><span class="muted">${hint}</span></li>`).join('');
@@ -62,10 +63,26 @@ function renderPeople() {
       <td>${esc(p.title || '—')}</td><td>${esc(p.department || '—')}</td><td>${esc(p.manager_name || '—')}</td>
       <td>${accessBadge(p.access)}</td>
       <td>${p.status === 'Exited' ? '<span class="badge Exited">Exited</span>' : p.joined ? '<span class="badge yes">Joined</span>' : '<span class="badge Pending">Not joined</span>'}</td>
-      <td><div class="rowacts">${p.status === 'Active' && !p.joined ? `<button class="btn small" data-invite="${p.id}" type="button">Invite link</button>` : ''}<button class="btn small" data-edit="${p.id}" type="button">Edit</button></div></td></tr>`).join('')
+      <td><div class="rowacts">${p.status === 'Active' ? `<button class="btn small" data-invite="${p.id}" type="button">${p.joined ? 'Reset password' : 'Invite'}</button>` : ''}<button class="btn small" data-edit="${p.id}" type="button">Edit</button></div></td></tr>`).join('')
     : `<tr><td colspan="7"><div class="empty-state">${people.length ? 'No one matches that search.' : 'No people yet. Import a CSV or add someone.'}</div></td></tr>`;
 }
-loaders.people = async () => { people = await api('/api/admin/people'); renderPeople(); };
+loaders.people = async () => {
+  people = await api('/api/admin/people');
+  if (!me.mailChecked) { mailOn = (await api('/api/admin/overview')).mailEnabled; me.mailChecked = true; }
+  const waiting = people.filter((p) => p.status === 'Active' && !p.joined).length;
+  $('#inviteAllBtn').hidden = !mailOn || !waiting;
+  $('#inviteAllBtn').textContent = `Email invites (${waiting})`;
+  renderPeople();
+};
+$('#inviteAllBtn').onclick = () => {
+  const waiting = people.filter((p) => p.status === 'Active' && !p.joined).length;
+  openDialog(`<h3>Email invites</h3>
+    <p>Send an invite email to the <b>${waiting}</b> ${waiting === 1 ? 'person who hasn\'t' : 'people who haven\'t'} set a password yet? Each gets a fresh link valid for 14 days; older links stop working.</p>
+    <div class="row">${cancelBtn}<span class="spacer"></span><button class="btn primary" type="submit">Send ${waiting} email${waiting === 1 ? '' : 's'}</button></div>`, async () => {
+    const r = await api('/api/admin/people/invite-all', { method: 'POST', body: {} });
+    toast(r.failed ? `Sent ${r.sent}, ${r.failed} failed: ${r.error}` : `Sent ${r.sent} invite email${r.sent === 1 ? '' : 's'}`, r.failed ? 'error' : '');
+  });
+};
 $('#peopleSearch').addEventListener('input', renderPeople);
 
 const personFields = (p = {}) => `
@@ -84,7 +101,7 @@ const formData = () => Object.fromEntries(new FormData(body).entries());
 $('#addBtn').onclick = () => openDialog(`<h3>Add a person</h3>${personFields()}
   <div class="row">${cancelBtn}<span class="spacer"></span><button class="btn primary" type="submit">Add person</button></div>`, async () => {
   await api('/api/admin/people', { method: 'POST', body: formData() });
-  toast('Person added. Use "Invite link" to let them log in.');
+  toast(mailOn ? 'Person added. Click "Invite" to email them a link.' : 'Person added. Click "Invite" to get a link for them.');
   loaders.people();
 });
 
@@ -112,15 +129,32 @@ document.addEventListener('click', async (e) => {
   if (inv) {
     const p = people.find((x) => x.id === inv.dataset.invite);
     try {
-      const { link } = await api(`/api/admin/people/${p.id}/invite`, { method: 'POST', body: {} });
-      const msg = `Hi ${p.name.split(' ')[0]}, you're invited to ${me.company.name}'s HR assistant on PeopleOS. Set your password here (valid 14 days): ${link}`;
-      openDialog(`<h3>Invite ${esc(p.name)}</h3>
-        <p class="muted small">Send this link to ${esc(p.email)}. It works once and expires in 14 days. Creating a new link cancels the old one.</p>
+      const r = await api(`/api/admin/people/${p.id}/invite`, { method: 'POST', body: {} });
+      const link = r.link;
+      const msg = r.reset
+        ? `Hi ${p.name.split(' ')[0]}, here's a link to set a new password for PeopleOS (valid ${r.expires}): ${link}`
+        : `Hi ${p.name.split(' ')[0]}, you're invited to ${me.company.name}'s HR assistant on PeopleOS. Set your password here (valid ${r.expires}): ${link}`;
+      openDialog(`<h3>${r.reset ? 'Reset password for' : 'Invite'} ${esc(p.name)}</h3>
+        <p class="muted small">${r.reset ? `They'll choose a new password and be logged out on other devices.` : ''} The link works once and expires in ${r.expires}. Creating a new link cancels the old one.</p>
+        ${mailOn ? `<div class="row"><button class="btn primary" type="button" id="emailLink">Email it to ${esc(p.email)}</button><span id="emailState"></span></div><p class="muted small">Or share it yourself:</p>` : `<p class="muted small">Send this to ${esc(p.email)} on email or WhatsApp.</p>`}
         <div class="copybox"><input type="text" id="inviteLink" value="${esc(link)}" readonly><button class="btn" type="button" id="copyLink">Copy link</button></div>
         <textarea id="inviteMsg" rows="3" readonly>${esc(msg)}</textarea>
-        <div class="row"><button class="btn" type="button" id="copyMsg">Copy message</button><span class="spacer"></span><button class="btn primary" value="cancel" type="submit">Done</button></div>`);
+        <div class="row"><button class="btn" type="button" id="copyMsg">Copy message</button><span class="spacer"></span><button class="btn" value="cancel" type="submit">Done</button></div>`);
       $('#copyLink').onclick = () => copyText(link, $('#inviteLink'));
       $('#copyMsg').onclick = () => copyText(msg, $('#inviteMsg'));
+      if ($('#emailLink')) $('#emailLink').onclick = async () => {
+        const b = $('#emailLink'); b.disabled = true;
+        try {
+          // a fresh link is created and emailed; the one shown above stops working
+          const s2 = await api(`/api/admin/people/${p.id}/invite`, { method: 'POST', body: { send: true } });
+          if (!s2.emailed) throw new Error(s2.emailError || 'Email failed.');
+          $('#inviteLink').value = s2.link;
+          $('#inviteMsg').value = msg.replace(link, s2.link);
+          $('#copyLink').onclick = () => copyText(s2.link, $('#inviteLink'));
+          $('#copyMsg').onclick = () => copyText($('#inviteMsg').value, $('#inviteMsg'));
+          b.hidden = true; $('#emailState').innerHTML = `<span class="sent">✓ Emailed to ${esc(p.email)}</span>`;
+        } catch (err) { b.disabled = false; toast(err.message, 'error'); }
+      };
     } catch (err) { toast(err.message, 'error'); }
   }
   const ed = e.target.closest('[data-edit]');
@@ -253,6 +287,8 @@ loaders.settings = async () => {
   $('#setCompany').value = s.companyName;
   $('#leaveTypes').replaceChildren(...Object.entries(s.leave).map(([k, v]) => leaveRow(k, v)));
   $('#setNotice').value = s.earnedNoticeDays; $('#setAuto').value = s.autoApproveUpToDays; $('#setLimit').value = s.dailyMessageLimit;
+  $('#setEmail').checked = s.emailNotifications !== false; $('#setEmail').disabled = !s.mailEnabled;
+  $('#emailHint').textContent = s.mailEnabled ? 'Links in emails open PeopleOS; nothing private from a confidential ticket is ever put in an email.' : 'Email isn\'t set up on this server yet, so this has no effect.';
   $('#cHr').value = s.contacts.hr; $('#cIc').value = s.contacts.ic; $('#cEap').value = s.contacts.eap; $('#cEthics').value = s.contacts.ethics;
 };
 $('#addLeaveType').onclick = () => $('#leaveTypes').append(leaveRow());
@@ -263,7 +299,7 @@ $('#settingsForm').onsubmit = async (e) => {
   const btn = e.submitter; btn.disabled = true;
   try {
     await api('/api/admin/settings', { method: 'PUT', body: {
-      companyName: $('#setCompany').value, leave, earnedNoticeDays: $('#setNotice').value, autoApproveUpToDays: $('#setAuto').value, dailyMessageLimit: $('#setLimit').value,
+      companyName: $('#setCompany').value, leave, earnedNoticeDays: $('#setNotice').value, autoApproveUpToDays: $('#setAuto').value, dailyMessageLimit: $('#setLimit').value, emailNotifications: $('#setEmail').checked,
       contacts: { hr: $('#cHr').value, ic: $('#cIc').value, eap: $('#cEap').value, ethics: $('#cEthics').value },
     } });
     toast('Settings saved');

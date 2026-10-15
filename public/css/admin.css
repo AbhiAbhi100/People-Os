@@ -30,3 +30,8 @@ h2 { font-size: 15px; margin: 0; }
 .result-list { max-height: 220px; overflow: auto; font-size: 13px; margin: 0; padding-left: 18px; }
 @media (max-width: 700px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
 #ticketFilter { max-width: 220px; }
+.note { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; color: var(--muted); }
+.note b { color: var(--ink); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
+.check input { margin-top: 3px; }
+.sent { color: var(--policy); font-size: 14px; font-weight: 500; }
