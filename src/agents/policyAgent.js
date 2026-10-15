@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { policyRetriever, formatDocs } from '../lib/retriever.js';
-import { tokenize } from '../lib/bm25.js';
+import { tokenize, policyIndex } from '../lib/bm25.js';
 import { isOffline, structuredModel } from '../llm/provider.js';
 
 const MIN_SCORE = 2.5;
@@ -31,7 +31,21 @@ async function getChain() {
 
 const cite = (d) => ({ id: d.metadata.id, title: `${d.metadata.doc} › ${d.metadata.heading}`, snippet: d.pageContent.slice(0, 220) });
 
+/** "leave policy", "wfh policy?" → a short overview of that whole document. */
+function overview(query) {
+  const m = query.toLowerCase().trim().match(/^(?:what(?:'s| is) (?:the |our )?|tell me (?:about )?(?:the )?|explain (?:the )?)?([a-z &/-]{2,30}?)\s+polic(?:y|ies)\??$/);
+  if (!m) return null;
+  const topic = m[1].replace(/\bwfh\b/, 'work from home').replace(/\bposh\b/, 'harassment');
+  const chunks = policyIndex.chunks.filter((c) => c.doc.toLowerCase().includes(topic) || topic.split(' ').every((w) => c.doc.toLowerCase().includes(w)));
+  if (!chunks.length) return null;
+  const doc = chunks[0].doc;
+  const text = `**${doc}** covers:\n\n${chunks.filter((c) => c.doc === doc).map((c) => `• **${c.heading}** — ${c.text.split(/(?<=\.)\s/)[0]}`).join('\n')}\n\nAsk me about any of these for the details.`;
+  return { agent: 'policy', confidence: 0.9, text, citations: chunks.filter((c) => c.doc === doc).slice(0, 3).map((c) => ({ id: c.id, title: `${c.doc} › ${c.heading}`, snippet: c.text.slice(0, 220) })) };
+}
+
 export async function policyAgent({ query, tracer }) {
+  const ov = overview(query);
+  if (ov) { tracer.step('policy', 'tool', 'overview of the whole policy document'); return ov; }
   const docs = await policyRetriever.invoke(query);
   tracer.step('policy', 'tool', `retriever → ${docs.length} sections`, docs.map((d) => `${d.metadata.id} (score ${d.metadata.score})`).join('\n'));
 

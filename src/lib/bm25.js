@@ -21,7 +21,7 @@ export function loadChunks() {
     for (const part of md.split(/^## /m).slice(1)) {
       const [heading, ...body] = part.split('\n');
       const text = body.join(' ').trim();
-      chunks.push({ id: `${file.replace('.md', '')}#${heading.toLowerCase().replace(/\W+/g, '-')}`, doc, heading, text, tokens: tokenize(`${heading} ${heading} ${text}`) });
+      chunks.push({ id: `${file.replace('.md', '')}#${heading.toLowerCase().replace(/\W+/g, '-')}`, doc, heading, text, tokens: tokenize(`${doc} ${heading} ${heading} ${text}`) });
     }
   }
   return chunks;
