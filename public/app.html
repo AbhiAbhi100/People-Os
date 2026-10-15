@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistant · PeopleOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23b07200'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/chat.css">
+<script src="/vendor/chart.js" defer></script>
+<script type="module" src="/js/chat.js"></script>
+</head>
+<body>
+<header class="topbar" id="topbar"></header>
+<div class="shell no-trace" id="shell">
+  <aside class="side" aria-label="Your leave and tickets">
+    <section class="card">
+      <div class="row"><h2>My leave</h2><span class="spacer"></span><button class="btn small" type="button" id="newLeave">Request leave</button></div>
+      <div class="bal" id="balances"></div>
+      <ul class="list" id="myRequests"></ul>
+    </section>
+    <section class="card" id="approvalsCard" hidden>
+      <h2>Waiting for your approval</h2>
+      <ul class="list" id="approvals"></ul>
+    </section>
+    <section class="card">
+      <h2>My tickets</h2>
+      <ul class="list" id="myTickets"></ul>
+    </section>
+  </aside>
+
+  <main class="chat">
+    <div class="thread" id="thread" aria-live="polite"></div>
+    <div class="chat-tools"><button class="ghost small trace-toggle" id="traceOpen" type="button">Show how it answered</button></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="Ask about a policy, request leave, raise a ticket…" aria-label="Message" maxlength="2000"></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </main>
+
+  <aside class="trace" id="tracePanel" aria-label="How the assistant answered">
+    <header>
+      <h2>How the assistant answered</h2>
+      <button class="ghost" id="traceClose" type="button">Hide</button>
+    </header>
+    <div class="lanes" aria-hidden="true">
+      <span></span><span title="Orchestrator">O</span><span title="Policy">P</span><span title="Data">D</span><span title="Action">A</span><span title="Career">C</span><span title="Handoff">H</span>
+    </div>
+    <ol class="steps" id="steps"><li class="empty">Each step the agents take for your next message shows up here: routing, searches, tool calls and approvals.</li></ol>
+    <footer id="engine"></footer>
+  </aside>
+</div>
+</body>
+</html>

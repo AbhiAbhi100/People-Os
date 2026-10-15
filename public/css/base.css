@@ -1,0 +1,98 @@
+/* Shared tokens + components for every PeopleOS page. Agent hues double as the brand palette. */
+:root {
+  --bg: #e9eef4;
+  --panel: #ffffff;
+  --ink: #18222f;
+  --muted: #5b6878;
+  --line: #d3dbe5;
+  --soft: #f3f6f9;
+  --policy: #0f7c72;
+  --data: #3346c8;
+  --action: #b07200;
+  --career: #8a3b8f;
+  --handoff: #c2364f;
+  --orch: #18222f;
+  --ok: #1f8a5b;
+  --focus: #3346c8;
+  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --font: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10161e; --panel: #18212c; --ink: #e6ecf2; --muted: #96a4b5; --line: #2a3644; --soft: #1e2935;
+    --policy: #3fbfb2; --data: #8b9bff; --action: #f0b43a; --career: #d17ad6; --handoff: #ff7088; --orch: #e6ecf2; --ok: #4cc28c; --focus: #8b9bff;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; }
+button, select, textarea, input { font: inherit; color: inherit; }
+a { color: var(--data); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+code { font-family: var(--mono); font-size: .88em; background: var(--soft); border: 1px solid var(--line); padding: 0 5px; border-radius: 4px; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; align-items: center; gap: 16px; padding: 10px clamp(12px, 3vw, 24px); background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+.logo { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ink); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.logo svg { flex: none; }
+.topbar .company { color: var(--muted); font-size: 14px; border-left: 1px solid var(--line); padding-left: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.topbar nav a, .topbar nav button { text-decoration: none; color: var(--muted); font-size: 14px; padding: 6px 10px; border-radius: var(--radius-sm); border: 0; background: none; cursor: pointer; white-space: nowrap; }
+.topbar nav a:hover, .topbar nav button:hover { background: var(--soft); color: var(--ink); }
+.topbar nav a.current { color: var(--ink); font-weight: 600; }
+.me { font-size: 13px; color: var(--muted); padding: 0 6px; white-space: nowrap; }
+@media (max-width: 640px) { .topbar .company, .me { display: none; } }
+
+/* ---------- buttons & inputs ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-weight: 600; font-size: 14px; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.btn:hover { background: var(--soft); }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.btn.primary:hover { opacity: .9; }
+.btn.danger { color: var(--handoff); }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn:disabled { opacity: .55; cursor: progress; }
+.field { display: grid; gap: 5px; font-size: 13.5px; font-weight: 500; }
+.field .hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
+  width: 100%; padding: 9px 11px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--panel); font-size: 14.5px; }
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--focus) 45%, transparent); outline-offset: 0; border-color: var(--focus); }
+
+/* ---------- surfaces ---------- */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(14px, 2.5vw, 22px); }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.stack { display: grid; gap: 14px; }
+.badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--c, var(--muted)); background: color-mix(in srgb, var(--c, var(--muted)) 13%, transparent); white-space: nowrap; }
+.badge.Pending, .badge.Open { --c: var(--action); }
+.badge.Approved, .badge.Resolved, .badge.yes { --c: var(--ok); }
+.badge.Rejected, .badge.Cancelled, .badge.Exited, .badge.no { --c: var(--handoff); }
+.badge.hr { --c: var(--career); } .badge.manager { --c: var(--data); }
+.badge.progress { --c: var(--data); }
+
+.tbl { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); }
+.tbl table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.tbl th, .tbl td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl th { background: var(--soft); font-weight: 600; font-size: 12.5px; color: var(--muted); position: sticky; top: 0; white-space: nowrap; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty-state { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* ---------- toast & dialog ---------- */
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; max-width: min(560px, 92vw); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
+.toast.error { background: var(--handoff); color: #fff; }
+dialog { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0; background: var(--panel); color: var(--ink); width: min(560px, 94vw); }
+dialog::backdrop { background: rgb(10 15 22 / .45); }
+dialog .dlg { padding: 20px; display: grid; gap: 14px; }
+dialog h3 { margin: 0; font-size: 17px; }
+.copybox { display: flex; gap: 8px; }
+.copybox input { font-family: var(--mono); font-size: 12.5px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

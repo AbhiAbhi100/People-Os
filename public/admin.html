@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HR console · PeopleOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23b07200'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/admin.css">
+<script type="module" src="/js/admin.js"></script>
+</head>
+<body>
+<header class="topbar" id="topbar"></header>
+<div class="console">
+  <nav class="tabs" aria-label="HR console sections">
+    <a href="#overview">Overview</a>
+    <a href="#people">People</a>
+    <a href="#policies">Policies</a>
+    <a href="#leave">Leave approvals <span class="count" id="leaveCount"></span></a>
+    <a href="#tickets">Tickets <span class="count" id="ticketCount"></span></a>
+    <a href="#settings">Settings</a>
+  </nav>
+
+  <!-- overview -->
+  <section id="tab-overview" class="tab stack">
+    <div id="dbWarning" class="warn" hidden>
+      <b>Test mode: data will be lost on restart.</b> This server isn't connected to a database yet, so everything you add disappears when it restarts or redeploys. Set <code>DATABASE_URL</code> to a Postgres database (a free Neon database works) before inviting your team.
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <h2>Get your team started</h2>
+      <ol class="checklist" id="checklist"></ol>
+    </div>
+  </section>
+
+  <!-- people -->
+  <section id="tab-people" class="tab stack" hidden>
+    <div class="row">
+      <input type="text" id="peopleSearch" placeholder="Search name, email, team…" aria-label="Search people">
+      <span class="spacer"></span>
+      <button class="btn" type="button" id="importBtn">Import CSV</button>
+      <button class="btn primary" type="button" id="addBtn">Add person</button>
+    </div>
+    <div class="tbl"><table><thead><tr><th>Name</th><th>Title</th><th>Team</th><th>Manager</th><th>Access</th><th>Account</th><th></th></tr></thead><tbody id="peopleRows"></tbody></table></div>
+  </section>
+
+  <!-- policies -->
+  <section id="tab-policies" class="tab stack" hidden>
+    <form class="card stack" id="uploadForm">
+      <h2>Upload a policy</h2>
+      <p class="muted small">PDF (with selectable text), Word (.docx), .txt or .md, up to 8 MB. The assistant answers only from these documents and shows which section each answer came from.</p>
+      <div class="row">
+        <input type="file" id="policyFile" accept=".pdf,.docx,.txt,.md" required>
+        <input type="text" id="policyTitle" placeholder="Title (optional, e.g. Leave Policy)" maxlength="120">
+        <button class="btn primary" type="submit">Upload</button>
+      </div>
+      <details><summary class="small">Or paste the policy text</summary>
+        <div class="stack" style="margin-top:10px">
+          <input type="text" id="pasteTitle" placeholder="Title" maxlength="120">
+          <textarea id="pasteText" rows="8" placeholder="Paste the policy here. Headings on their own line become sections."></textarea>
+          <button class="btn" type="button" id="pasteBtn">Add pasted policy</button>
+        </div>
+      </details>
+    </form>
+    <div class="tbl"><table><thead><tr><th>Policy</th><th>Sections</th><th>Uploaded</th><th></th></tr></thead><tbody id="policyRows"></tbody></table></div>
+  </section>
+
+  <!-- leave -->
+  <section id="tab-leave" class="tab stack" hidden>
+    <p class="muted small">Requests from people who report to you appear here, and as HR you can decide on anyone's request. Managers also see their team's requests on their own screen.</p>
+    <div class="tbl"><table><thead><tr><th>#</th><th>Person</th><th>Leave</th><th>Dates</th><th>Days</th><th>Reason</th><th>Balance</th><th></th></tr></thead><tbody id="leaveRows"></tbody></table></div>
+  </section>
+
+  <!-- tickets -->
+  <section id="tab-tickets" class="tab stack" hidden>
+    <div class="row">
+      <select id="ticketFilter" aria-label="Filter tickets"><option value="">All tickets</option><option>Open</option><option>In progress</option><option>Resolved</option></select>
+    </div>
+    <div class="tbl"><table><thead><tr><th>#</th><th>From</th><th>Category</th><th>Description</th><th>Raised</th><th>Status and reply</th></tr></thead><tbody id="ticketRows"></tbody></table></div>
+  </section>
+
+  <!-- settings -->
+  <section id="tab-settings" class="tab" hidden>
+    <form class="settings stack" id="settingsForm">
+      <div class="card stack">
+        <h2>Company</h2>
+        <label class="field">Company name<input type="text" id="setCompany" maxlength="80" required></label>
+      </div>
+      <div class="card stack">
+        <h2>Leave</h2>
+        <p class="muted small">Yearly entitlement per leave type. New types are added to everyone's balance; removing a type hides it.</p>
+        <div id="leaveTypes" class="stack"></div>
+        <button class="btn small" type="button" id="addLeaveType">Add leave type</button>
+        <div class="grid2">
+          <label class="field">Notice for earned/annual leave <span class="hint">working days</span><input type="number" id="setNotice" min="0" max="60"></label>
+          <label class="field">Auto-approve requests up to <span class="hint">days; 0 = always ask the manager</span><input type="number" id="setAuto" min="0" max="30"></label>
+        </div>
+      </div>
+      <div class="card stack">
+        <h2>Who handles sensitive topics</h2>
+        <p class="muted small">When someone mentions harassment, mental health or a grievance, the assistant doesn't answer. It points them to these people instead.</p>
+        <div class="grid2">
+          <label class="field">HR contact<input type="text" id="cHr" placeholder="hr@company.com"></label>
+          <label class="field">Internal Committee (POSH)<input type="text" id="cIc" placeholder="ic@company.com"></label>
+          <label class="field">Employee assistance / counselling<input type="text" id="cEap" placeholder="Phone or email"></label>
+          <label class="field">Ethics or whistleblower line<input type="text" id="cEthics" placeholder="ethics@company.com"></label>
+        </div>
+      </div>
+      <div class="card stack">
+        <h2>Usage</h2>
+        <label class="field">Assistant messages per day for the whole company<input type="number" id="setLimit" min="10" max="100000"></label>
+      </div>
+      <div><button class="btn primary" type="submit">Save settings</button></div>
+    </form>
+  </section>
+</div>
+
+<dialog id="dlg"><form method="dialog" class="dlg" id="dlgBody"></form></dialog>
+</body>
+</html>

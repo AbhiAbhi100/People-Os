@@ -3,64 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PeopleOS</title>
+<title>PeopleOS — AI HR desk for your company</title>
+<meta name="description" content="Upload your HR policies and employee list. Your team asks questions, applies for leave and raises tickets in plain English or Hinglish; managers approve.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-<script src="/vendor/chart.js" defer></script>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23c98400'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
-<script src="app.js" defer></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23b07200'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/landing.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="rail">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><circle cx="11" cy="12" r="5" fill="var(--policy)"/><circle cx="21" cy="12" r="5" fill="var(--data)"/><circle cx="11" cy="22" r="5" fill="var(--action)"/><circle cx="21" cy="22" r="5" fill="var(--career)"/></svg>
-      <div><strong>PeopleOS</strong><span>Your HR colleague, with agents</span></div>
+<header class="topbar">
+  <a class="logo" href="/"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><circle cx="11" cy="12" r="5" fill="var(--policy)"/><circle cx="21" cy="12" r="5" fill="var(--data)"/><circle cx="11" cy="22" r="5" fill="var(--action)"/><circle cx="21" cy="22" r="5" fill="var(--career)"/></svg><span>PeopleOS</span></a>
+  <nav><a href="/login">Log in</a><a class="btn primary small" href="/signup">Create workspace</a></nav>
+</header>
+
+<main class="landing">
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>An AI HR desk for your whole company</h1>
+      <p class="lede">Upload your HR policies and your employee list. Your team asks questions in plain English or Hinglish, applies for leave and raises tickets. Managers approve with one click.</p>
+      <div class="row">
+        <a class="btn primary" href="/signup">Create your company workspace</a>
+        <a class="btn" href="/login">Log in</a>
+      </div>
+      <p class="muted small">Free while in beta. Setup takes about 10 minutes.</p>
     </div>
 
-    <label class="field" for="persona">Signed in as
-      <select id="persona"></select>
-    </label>
-    <p class="access" id="access"></p>
+    <figure class="demo" aria-label="Example conversation">
+      <div class="bubble user">kal chutti chahiye, sister ki shaadi hai</div>
+      <div class="reply" style="--c: var(--action)">
+        <div class="who">Leave</div>
+        <p>You have <b>5 Casual</b> and <b>12 Earned</b> leaves. Here is what I'll send to Neha (your manager):</p>
+        <div class="approval">
+          <div class="what">Casual leave · 16 Oct · 1 working day · "sister's wedding"</div>
+          <div class="row"><span class="fakebtn primary">Submit leave</span><span class="fakebtn">Cancel</span></div>
+        </div>
+      </div>
+      <div class="bubble user">can I work from Pune for 2 weeks?</div>
+      <div class="reply" style="--c: var(--policy)">
+        <div class="who">Policy</div>
+        <p>Yes. Working from another city in India is allowed for up to <b>30 days a year</b> with your manager's approval.</p>
+        <span class="src">Work From Home Policy › Work from another city</span>
+      </div>
+    </figure>
+  </section>
 
-    <section class="try">
-      <h2>Try asking</h2>
-      <div id="suggestions"></div>
-    </section>
+  <section class="how">
+    <h2>Set up in three steps</h2>
+    <ol class="steps">
+      <li><b>Create your workspace</b><span>Sign up as the HR admin. Upload your leave, WFH, reimbursement and other policies as PDF or Word files.</span></li>
+      <li><b>Add your people</b><span>Import a CSV with names, emails, titles and managers. Share each person's invite link on email or WhatsApp.</span></li>
+      <li><b>Your team starts asking</b><span>Employees get answers with sources and request leave. Managers approve from their own screen. HR sees everything in one console.</span></li>
+    </ol>
+  </section>
 
-    <section class="legend" aria-label="Agents">
-      <h2>Agents</h2>
-      <ul>
-        <li><i style="--c:var(--policy)"></i><span><b>Policy</b> answers from HR policies, with sources</span></li>
-        <li><i style="--c:var(--data)"></i><span><b>Data</b> turns questions into SQL and charts</span></li>
-        <li><i style="--c:var(--action)"></i><span><b>Action</b> applies leave, raises tickets — after you approve</span></li>
-        <li><i style="--c:var(--career)"></i><span><b>Career</b> shows what AI can take off your plate</span></li>
-        <li><i style="--c:var(--handoff)"></i><span><b>Handoff</b> brings in a human when it should</span></li>
-      </ul>
-    </section>
-    <p class="mode" id="mode"></p>
-  </aside>
-
-  <main class="chat">
-    <div class="thread" id="thread" aria-live="polite"></div>
-    <form class="composer" id="composer">
-      <textarea id="input" rows="1" placeholder="Ask about policies, people data, leave, tickets or your career…" aria-label="Message"></textarea>
-      <button type="submit" id="send">Send</button>
-    </form>
-  </main>
-
-  <aside class="trace" id="tracePanel">
-    <header>
-      <h2>Agent trace</h2>
-      <button class="ghost" id="traceToggle" aria-expanded="true">Hide</button>
-    </header>
-    <div class="lanes" aria-hidden="true">
-      <span></span><span title="Orchestrator">O</span><span title="Policy">P</span><span title="Data">D</span><span title="Action">A</span><span title="Career">C</span><span title="Handoff">H</span>
+  <section class="features">
+    <h2>What your team can do</h2>
+    <div class="grid">
+      <div style="--c: var(--policy)"><h3>Ask about any policy</h3><p>Answers come only from your own documents, with the section they came from. If the policy doesn't cover it, PeopleOS says so and offers to ask HR.</p></div>
+      <div style="--c: var(--action)"><h3>Leave and helpdesk</h3><p>Check balances, apply or cancel leave, raise IT, payroll or facilities tickets. Nothing is submitted until the person confirms.</p></div>
+      <div style="--c: var(--data)"><h3>People data for HR</h3><p>"Attrition by department", "who has the most leave this year": answers as charts, with the query shown so you can check it.</p></div>
+      <div style="--c: var(--career)"><h3>Career guidance</h3><p>Shows which parts of a role AI can take over and which skills to grow, with the scoring explained.</p></div>
     </div>
-    <ol class="steps" id="steps"><li class="empty">Send a message to watch the orchestrator route it, call tools and pause for approval.</li></ol>
-    <footer id="metrics"></footer>
-  </aside>
-</div>
+  </section>
+
+  <section class="trust">
+    <h2>Built for HR data</h2>
+    <ul>
+      <li><b>Your data stays yours.</b> Each company's policies and people are kept separate. The AI only ever sees your company's records.</li>
+      <li><b>Role-based access.</b> Employees see their own records. Managers see their team. Only HR sees salaries, ratings and personal details.</li>
+      <li><b>A person stays in charge.</b> The assistant never submits anything without a click, and leave still needs a manager's approval.</li>
+      <li><b>Sensitive topics go to people.</b> Harassment, mental health or grievances are routed to your HR contacts, never answered by AI.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>PeopleOS · built with LangGraph and LangChain</span>
+  <a href="https://github.com/AbhiAbhi100/People-Os">Source code on GitHub</a>
+</footer>
 </body>
 </html>

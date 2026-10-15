@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PeopleOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='12' r='5' fill='%230f7c72'/%3E%3Ccircle cx='21' cy='12' r='5' fill='%233346c8'/%3E%3Ccircle cx='11' cy='22' r='5' fill='%23b07200'/%3E%3Ccircle cx='21' cy='22' r='5' fill='%238a3b8f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/auth.css">
+<script type="module" src="/js/auth.js"></script>
+</head>
+<body>
+<main class="auth">
+  <a class="logo" href="/"><svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><circle cx="11" cy="12" r="5" fill="var(--policy)"/><circle cx="21" cy="12" r="5" fill="var(--data)"/><circle cx="11" cy="22" r="5" fill="var(--action)"/><circle cx="21" cy="22" r="5" fill="var(--career)"/></svg><span>PeopleOS</span></a>
+
+  <form class="card stack" id="login" hidden>
+    <h1>Log in</h1>
+    <label class="field">Work email<input type="email" id="login-email" autocomplete="email" required></label>
+    <label class="field">Password<input type="password" id="login-password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Log in</button>
+    <p class="muted small">New company? <a href="/signup">Create a workspace</a>. Employee without a password? Use the invite link from your HR team.</p>
+  </form>
+
+  <form class="card stack" id="signup" hidden>
+    <h1>Create your company workspace</h1>
+    <p class="muted small">You'll be the HR admin. You can invite your team after this.</p>
+    <label class="field">Company name<input type="text" id="su-company" autocomplete="organization" required maxlength="80"></label>
+    <label class="field">Your name<input type="text" id="su-name" autocomplete="name" required maxlength="80"></label>
+    <label class="field">Your job title <span class="hint">optional</span><input type="text" id="su-title" maxlength="80" placeholder="HR Manager"></label>
+    <label class="field">Work email<input type="email" id="su-email" autocomplete="email" required></label>
+    <label class="field">Password <span class="hint">at least 8 characters</span><input type="password" id="su-password" autocomplete="new-password" minlength="8" required></label>
+    <button class="btn primary" type="submit">Create workspace</button>
+    <p class="muted small">Already have an account? <a href="/login">Log in</a></p>
+  </form>
+
+  <form class="card stack" id="join" hidden>
+    <h1 id="join-title">Join your team</h1>
+    <p class="muted" id="join-sub">Checking your invite…</p>
+    <div id="join-fields" class="stack" hidden>
+      <label class="field">Email<input type="email" id="join-email" disabled></label>
+      <label class="field">Choose a password <span class="hint">at least 8 characters</span><input type="password" id="join-password" autocomplete="new-password" minlength="8" required></label>
+      <button class="btn primary" type="submit">Set password and continue</button>
+    </div>
+  </form>
+
+  <p class="error" id="error" role="alert" hidden></p>
+</main>
+</body>
+</html>
