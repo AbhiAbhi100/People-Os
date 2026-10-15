@@ -7,6 +7,7 @@ import { join } from 'node:path';
 // Evaluate against a throwaway copy of the DB so write actions never touch your demo data.
 const tmp = join(mkdtempSync(join(tmpdir(), 'peopleos-eval-')), 'eval.db');
 process.env.PEOPLEOS_DB = tmp; // must be set before any module reads the DB path
+process.env.PEOPLEOS_TODAY ||= '2026-10-13'; // pin the date so leave rules give the same answers every run
 const { seed } = await import('../src/db/seed.js');
 seed(tmp);
 

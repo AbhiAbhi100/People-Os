@@ -1,5 +1,10 @@
 // Natural-language date helpers (used by tools + offline mode).
-export const TODAY = () => new Date(process.env.PEOPLEOS_TODAY || '2026-10-13T00:00:00');
+// Real "today" in production; evals pin it with PEOPLEOS_TODAY so results are reproducible.
+export const TODAY = () => {
+  if (process.env.PEOPLEOS_TODAY) return new Date(`${process.env.PEOPLEOS_TODAY}T00:00:00`);
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
 export const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -22,6 +27,7 @@ export function parseDateRange(text) {
     if (d < base) d.setFullYear(d.getFullYear() + 1);
     found.push(d);
   }
+  if (/\btoday\b|\baaj\b/.test(t)) found.push(new Date(base));
   if (/\bday after tomorrow\b|\bparso\b/.test(t)) found.push(new Date(base.getTime() + 2 * 864e5));
   else if (/\btomorrow\b|\bkal\b/.test(t)) found.push(new Date(base.getTime() + 864e5));
   for (const m of t.matchAll(/\b(next|this|coming)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/g)) {
