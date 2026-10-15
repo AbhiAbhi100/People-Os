@@ -3,6 +3,7 @@ import { query, one, tx } from '../db/pg.js';
 import { TODAY, iso, parseISO, businessDays } from '../lib/dates.js';
 import { bump } from '../lib/versions.js';
 import { UserError, settingsOf, audit } from './company.js';
+import * as notify from './notify.js';
 
 export const TICKET_CATEGORIES = ['IT', 'Payroll', 'Benefits', 'Facilities', 'HR Query', 'Confidential'];
 
@@ -71,6 +72,7 @@ export async function applyLeave(ctx, args) {
     return r.id;
   });
   bump(ctx.company.id);
+  if (!auto) notify.leaveRequested(id);
   const approver = auto ? null : await one(`SELECT m.name FROM people p JOIN people m ON m.id = p.manager_id WHERE p.id = $1`, [ctx.user.id]);
   const left = (await balances(ctx.user.id)).find((b) => b.leave_type === leave_type);
   return { request_id: id, status: auto ? 'Approved' : 'Pending', days, approver: approver?.name || (auto ? null : 'HR'), remaining_balance: left ? left.balance - left.pending : null };
@@ -107,6 +109,7 @@ export async function decideLeave(actor, requestId, decision, note) {
   });
   await audit(actor.company_id, actor.id, `leave.${decision}`, { requestId: Number(requestId) });
   bump(actor.company_id);
+  notify.leaveDecided(Number(requestId));
   return { request_id: Number(requestId), status, name: r.name };
 }
 
@@ -147,6 +150,7 @@ export async function raiseTicket(ctx, args) {
   const [r] = await query(`INSERT INTO tickets (company_id, person_id, category, description, priority) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
     [ctx.company.id, ctx.user.id, args.category, String(args.description).slice(0, 1000), priority]);
   bump(ctx.company.id);
+  notify.ticketRaised(r.id);
   const sla = { IT: '1 working day', Payroll: '3 working days', Confidential: 'HR will reach out within 24 hours' }[args.category] || '2 working days';
   return { ticket_id: r.id, status: 'Open', priority, expected_response: sla };
 }
@@ -162,11 +166,13 @@ export async function companyTickets(companyId, status) {
 }
 export async function updateTicket(actor, ticketId, { status, resolution }) {
   if (!['Open', 'In progress', 'Resolved'].includes(status)) throw new UserError('Invalid status.');
+  const before = await one('SELECT status, resolution FROM tickets WHERE id = $1 AND company_id = $2', [ticketId, actor.company_id]);
   const r = await query(`UPDATE tickets SET status = $3, resolution = COALESCE($4, resolution), resolved_at = CASE WHEN $3 = 'Resolved' THEN now() ELSE NULL END
                          WHERE id = $1 AND company_id = $2 RETURNING id`, [ticketId, actor.company_id, status, resolution ? String(resolution).slice(0, 1000) : null]);
   if (!r.length) throw new UserError('Ticket not found.', 404);
   await audit(actor.company_id, actor.id, 'ticket.update', { ticketId: Number(ticketId), status });
   bump(actor.company_id);
+  if (before && (before.status !== status || (resolution && String(resolution).slice(0, 1000) !== before.resolution))) notify.ticketUpdated(Number(ticketId));
   return { ticket_id: Number(ticketId), status };
 }
 

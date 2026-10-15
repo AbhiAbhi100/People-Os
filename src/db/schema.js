@@ -112,4 +112,5 @@ export const DEFAULT_SETTINGS = {
   autoApproveUpToDays: 0, // 0 = every request goes to the manager / HR
   contacts: { hr: '', ic: '', eap: '', ethics: '' },
   dailyMessageLimit: 300,
+  emailNotifications: true, // leave and ticket updates by email (when the server has email set up)
 };
