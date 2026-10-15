@@ -94,16 +94,23 @@ const TICKET_RULES = [
 function offlinePlan(q) {
   const t = q.toLowerCase();
   const steps = [];
-  if (/balance|how many leaves|leaves? (left|remaining)|kitni (leave|chutti)/.test(t)) steps.push({ tool: 'get_leave_balance', args: {} });
+  if (/balance|how (many|much) (leave|leaves|chutti)|leaves? (left|remaining)|leaves? (do )?i have|i had|kitni (leave|chutti)|bachi/.test(t)) steps.push({ tool: 'get_leave_balance', args: {} });
   if (/my tickets|ticket status|status of my ticket/.test(t)) steps.push({ tool: 'get_my_tickets', args: {} });
   if (/my manager|who is my|hrbp|hr partner|my profile/.test(t)) steps.push({ tool: 'get_profile', args: {} });
   if (/my team|my reports|team.*leave|who.*(on leave|off)/.test(t)) steps.push({ tool: 'get_team', args: {} });
   const range = parseDateRange(q);
-  if (/apply|take|book|need|want|put|mark|chutti|leave (on|for|from|tomorrow)|off (on|tomorrow)/.test(t) && /leave|off|chutti/.test(t) && range) {
+  const sickNow = /\b(i am|i'm|im|feeling)\s+(sick|unwell|ill)\b|\bfever\b|\bbimar/.test(t);
+  const askingBalance = /kitni|how (much|many)|bachi|baki|left|remaining|balance/.test(t) && !/apply|book|chahiye|need|want/.test(t);
+  const wantsLeave = !askingBalance && (sickNow || (/apply|take|book|need|want|put|mark|chutti|chahiye|leni|leave (on|for|from|tomorrow|today)|off (on|tomorrow)/.test(t) && /leave|off|chutti/.test(t)));
+  if (wantsLeave && !range && !sickNow) {
+    if (!steps.some((s) => s.tool === 'get_leave_balance')) steps.push({ tool: 'get_leave_balance', args: {} });
+    steps.needDates = true;
+  } else if (wantsLeave) {
+    const r = range || parseDateRange('today');
     const type = /sick|fever|unwell|ill\b|doctor|hospital|bimar/.test(t) ? 'Sick' : /casual/.test(t) ? 'Casual' : /earned|privilege|vacation|trip|travel|holiday/.test(t) ? 'Earned' : 'auto';
     const reason = (q.match(/\b(?:for|because|as|due to)\s+(?:a |an |my )?([a-z ]{3,40}?)(?:[.,!]|$| from| on| next| tomorrow)/i)?.[1] || '').trim();
-    steps.push({ tool: 'apply_leave', args: { leave_type: type, start_date: range.start, end_date: range.end, reason: /^\d|days?$/.test(reason) ? '' : reason } });
-  } else if (/ticket|not working|broken|issue|problem|complain|request|stopped|crash|slow|pending|missing|not received/.test(t) && !/my tickets|ticket status/.test(t)) {
+    steps.push({ tool: 'apply_leave', args: { leave_type: type, start_date: r.start, end_date: r.end, reason: /^\d|days?$/.test(reason) ? '' : reason } });
+  } else if (/ticket|not working|broken|issue|problem|complain|request|stopped|crash|slow|pending|missing|not received|not credited|not getting/.test(t) && !/my tickets|ticket status/.test(t)) {
     const cat = TICKET_RULES.find(([re]) => re.test(t))?.[1] || 'HR Query';
     steps.push({ tool: 'raise_ticket', args: { category: cat, description: q.replace(/^(please |pls |can you |could you )?(raise|create|open|log) (a |an )?(\w+ )?ticket (for|about|that)?\s*/i, '').replace(/^./, (c) => c.toUpperCase()), priority: /urgent|asap|blocked|critical/.test(t) ? 'High' : 'Medium' } });
   }
@@ -146,6 +153,7 @@ async function offline({ query, ctx, tracer }) {
     if (err) { tracer.step('action', 'guard', `validation: ${err}`); lines.push(`⚠️ I can't submit this: ${err}`); continue; }
     return { agent: 'action', confidence: 0.85, text: [...lines, 'Here is what I will submit — please confirm:'].filter(Boolean).join('\n\n'), cards, pendingAction: propose(call, tracer) };
   }
+  if (plan.needDates) lines.push('Sure! Which dates? For example: "casual leave tomorrow", "sick leave today" or "earned leave from 20 oct to 22 oct".');
   return { agent: 'action', confidence: 0.85, text: lines.join('\n\n'), cards };
 }
 

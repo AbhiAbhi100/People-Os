@@ -24,11 +24,14 @@ export const AGENTS = { policy: policyAgent, data: dataAgent, action: actionAgen
 const INJECTION = /ignore (all |any |the )?(previous|prior|above) (instructions|rules)|reveal (your|the) (system )?prompt|you are now (?!on leave)|developer mode|jailbreak|act as (an? )?(admin|hr admin|root)/i;
 
 const RULES = {
-  action: [/\b(apply|book|take|mark|cancel)\b.*\b(leave|off|chutti)\b|\bleave (tomorrow|on|from)\b/, 3, /\b(raise|open|log|create)\b.*\bticket\b|not working|broken|stopped working|isn'?t working|\bcrash|not received|still pending/, 3,
-    /\b(my|leave) balance|leaves? (left|remaining)|kitni (leave|chutti)|my tickets|ticket status|my manager|my hrbp|my profile|my team|my reports|who.*on leave/, 3],
+  action: [/\b(apply|book|take|mark|cancel)\b.*\b(leave|off|chutti)\b|\bleave (tomorrow|today|on|from)\b/, 3,
+    /\b(want|need|take|chahiye|leni|lena)\b.{0,25}\b(leave|chutti|chhutti|off)\b|\b(leave|chutti|chhutti)\b.{0,25}\b(chahiye|leni|lena)\b/, 3,
+    /\b(raise|open|log|create)\b.*\bticket\b|not working|broken|stopped working|isn'?t working|\bcrash|not received|not credited|not getting|still pending|issue with|problem with/, 3,
+    /\b(i am|i'm|im|feeling)\s+(sick|unwell|ill)\b|\bfever\b|\bbimar/, 3,
+    /\b(my|leave) balance|leaves? (left|remaining)|how (much|many) (leave|leaves|chutti)\b.*\b(have|had|left|remaining|bachi|baki)\b|leaves? (do )?i have|kitni (leave|chutti)|my tickets|ticket status|my manager|my hrbp|my profile|my team|my reports|who.*on leave/, 3],
   data: [/headcount|attrition|churn|turnover|trend|over time|by (department|location|level|role|month|year|category|gender)|breakdown|split|average|avg|median|percentage|ratio|distribution|chart|plot|graph|analytics|dashboard/, 2,
     /how many (employees|people|joiners|hires|exits|tickets)|hires|hiring|joiners|engagement|tenure|resolution time|open tickets|diversity|women|exits|leaving|salary (by|per|across)/, 2],
-  policy: [/policy|policies|allowed|can i|am i eligible|eligib|entitle|how many (days|leaves) (do|can|will)|rule|reimburs|allowance|insurance|maternity|paternity|parental|bereavement|wfh|work from home|hybrid|carry forward|encash|notice period|claim|limit|esop|medical certificate|holiday|learning budget|another city|abroad/, 2],
+  policy: [/policy|policies|allowed|can i|am i eligible|eligib|entitle|how many (days|leaves) (do|can|will)|rule|reimburs|allowance|insurance|maternity|paternity|parental|bereavement|wfh|work from home|hybrid|carry forward|encash|notice period|claim|limit|esop|medical certificate|holiday|learning budget|another city|abroad|grievance|posh|harassment|ethics|counsell?ing|\beap\b|complaint process/, 2],
   career: [/career|automat|\bai\b.*(job|role|task|replace|take over|handle)|my (job|role) (future|safe)|which tasks|upskill|skills? (to|should)|grow|future of work|next role|career path/, 3],
 };
 
@@ -139,7 +142,12 @@ async function routerNode(state, config) {
   tracer.step('orchestrator', 'route', tasks.length ? `plan: ${tasks.map((t) => t.agent).join(' + ')}` : 'no specialist matched', tasks.map((t) => `${t.agent} ← "${t.query}"`).join('\n'));
   if (!tasks.length) {
     const name = ctxOf(config).user.name.split(' ')[0];
-    return { tasks, results: [{ _i: 0, agent: 'orchestrator', text: `Hi ${name}! I'm PeopleOS. I can:\n\n• **Answer policy questions** with citations — "How many sick leaves can I take without a certificate?"\n• **Analyse people data** with charts — "Attrition by department", then "now by location"\n• **Take actions** with your approval — "Apply casual leave tomorrow", "My laptop VPN isn't working"\n• **Career insights** — "Which parts of my job can AI automate?"` }] };
+    const msg = state.message.toLowerCase().trim();
+    if (/^(thanks|thank you|thx|ty|ok|okay|cool|great|nice|shukriya|dhanyavaad)\b/.test(msg)) {
+      return { tasks, results: [{ _i: 0, agent: 'orchestrator', text: `Happy to help, ${name}! Anything else — leave, policies, people data or your career?` }] };
+    }
+    const greet = /^(hi|hello|hey|hii+|namaste|good (morning|afternoon|evening))\b/.test(msg);
+    return { tasks, results: [{ _i: 0, agent: 'orchestrator', text: `${greet ? `Hi ${name}! I'm PeopleOS.` : "I didn't quite get that."} I can:\n\n• **Answer policy questions** with citations — "How many sick leaves can I take without a certificate?"\n• **Analyse people data** with charts — "Attrition by department", then "now by location"\n• **Take actions** with your approval — "Apply casual leave tomorrow", "My laptop VPN isn't working"\n• **Career insights** — "Which parts of my job can AI automate?"` }] };
   }
   return { tasks };
 }
