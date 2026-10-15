@@ -5,13 +5,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
-const PORT = 4999;
+// npm run test:llm            → OpenAI-compatible path (ChatOpenAI)
+// npm run test:llm -- gemini   → Gemini path (ChatGoogleGenerativeAI)
+const provider = process.argv[2] === 'gemini' ? 'gemini' : 'openai';
+const PORT = provider === 'gemini' ? 4998 : 4999;
 Object.assign(process.env, {
   PEOPLEOS_DB: join(mkdtempSync(join(tmpdir(), 'peopleos-llm-')), 'llm.db'),
-  LLM_PROVIDER: 'openai', OPENAI_API_KEY: 'test', OPENAI_BASE_URL: `http://localhost:${PORT}/v1`, LLM_MODEL: 'mock',
+  LLM_PROVIDER: provider, LLM_MODEL: 'mock', PEOPLEOS_TODAY: '2026-10-13',
+  ...(provider === 'gemini'
+    ? { GEMINI_API_KEY: 'test', GEMINI_BASE_URL: `http://localhost:${PORT}` }
+    : { OPENAI_API_KEY: 'test', OPENAI_BASE_URL: `http://localhost:${PORT}/v1` }),
 });
-const { startMockLLM, mockLog } = await import('./mockOpenAI.js');
-const server = await startMockLLM(PORT);
+const mock = provider === 'gemini' ? await import('./mockGemini.js') : await import('./mockOpenAI.js');
+const mockLog = mock.mockLog;
+const server = await (provider === 'gemini' ? mock.startMockGemini(PORT) : mock.startMockLLM(PORT));
+console.log(`LLM path: ${provider}\n`);
 const { seed } = await import('../src/db/seed.js');
 seed(process.env.PEOPLEOS_DB);
 const { runTurn, resumeTurn } = await import('../src/agents/orchestrator.js');
