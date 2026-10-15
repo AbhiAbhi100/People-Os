@@ -2,6 +2,7 @@
 //   npm run eval            (works with or without an LLM key — compare both!)
 // Runs on an in-memory database seeded with a synthetic company, so your real data is never touched.
 process.env.PEOPLEOS_DB = 'memory';
+process.env.MAIL_TRANSPORT = 'memory'; // notification emails are captured, not sent
 process.env.PEOPLEOS_TODAY ||= '2026-10-13'; // pin the date so leave rules give the same answers every run
 
 const { seedCompanies, PERSONAS } = await import('./fixtures/seedCompany.js');
@@ -10,6 +11,10 @@ const { callTool } = await import('../src/tools/registry.js');
 const { one } = await import('../src/db/pg.js');
 const { providerInfo, usage } = await import('../src/llm/provider.js');
 const { cases, attacks } = await import('./cases.js');
+const { outbox } = await import('../src/lib/mailer.js');
+const { flushNotifications } = await import('../src/services/notify.js');
+const auth = await import('../src/auth.js');
+const mailsTo = async (email, since) => { await flushNotifications(); return outbox.slice(since).filter((m) => m.to.includes(email)); };
 
 await seedCompanies();
 
@@ -88,8 +93,10 @@ await flow('employee applies → manager approves → balance drops', async () =
   const before = await one("SELECT balance FROM leave_balances WHERE person_id = $1 AND leave_type = 'Casual'", [(await ctxOf('E1001')).user.id]);
   const a = await ask('E1001', 'Apply casual leave tomorrow for a family function', 'f3');
   must(a.pending?.tool === 'apply_leave', 'no leave proposal');
+  const mark = outbox.length;
   const done = await resumeTurn({ threadId: 'f3', id: a.pending.id, decision: 'approve', ctx: await ctxOf('E1001') });
   must(/sent to \*\*Arjun Mehta\*\* for approval/.test(done.results[0].text), done.results[0].text);
+  must((await mailsTo('arjun.mehta@acme.test', mark)).some((m) => /Leave request from Riya Sharma/.test(m.subject)), 'manager was not emailed');
   const reqId = done.results[0].text.match(/#(\d+)/)[1];
   const list = await ask('E1002', 'show pending approvals', 'f4');
   must(list.out.results[0].text.includes(`#${reqId}`), 'manager does not see the request');
@@ -97,6 +104,7 @@ await flow('employee applies → manager approves → balance drops', async () =
   must(dec.pending?.tool === 'decide_leave', 'no decide proposal');
   const ok = await resumeTurn({ threadId: 'f4', id: dec.pending.id, decision: 'approve', ctx: await ctxOf('E1002') });
   must(/Approved Riya Sharma/.test(ok.results[0].text), ok.results[0].text);
+  must((await mailsTo('riya.sharma@acme.test', mark)).some((m) => /Leave approved/.test(m.subject) && /by Arjun Mehta/.test(m.text)), 'employee was not emailed the decision');
   const after = await one("SELECT balance FROM leave_balances WHERE person_id = $1 AND leave_type = 'Casual'", [(await ctxOf('E1001')).user.id]);
   must(after.balance === before.balance - 1, `balance ${before.balance} → ${after.balance}`);
 });
@@ -120,6 +128,29 @@ await flow('cross-company leave approval refused', async () => {
   const anyAcme = await one('SELECT id FROM leave_requests WHERE company_id = $1 LIMIT 1', [(await ctxOf('E1001')).company.id]);
   const err = await callTool('decide_leave', { request_id: anyAcme.id, decision: 'approve' }, g).then(() => null, (e) => e.message);
   must(err && /not found/i.test(err), `expected not found, got ${err}`);
+});
+
+await flow('ticket emails: HR is told, confidential text stays out, reply reaches the employee', async () => {
+  const mark = outbox.length;
+  const riya = await ctxOf('E1001'), meera = await ctxOf('E1003');
+  const work = await import('../src/services/work.js');
+  await work.raiseTicket(riya, { category: 'Payroll', description: 'Bonus missing from October slip' });
+  const c = await work.raiseTicket(riya, { category: 'Confidential', description: 'my manager harasses me' });
+  const hrMail = await mailsTo('meera.iyer@acme.test', mark);
+  must(hrMail.some((m) => /Bonus missing/.test(m.text)), 'HR not emailed about the ticket');
+  must(hrMail.some((m) => /Confidential ticket/.test(m.subject)) && !hrMail.some((m) => /harasses/.test(m.text + m.html)), 'confidential text leaked into email');
+  must(!outbox.slice(mark).some((m) => m.to.some((x) => /globex/.test(x))), 'another company was emailed');
+  await work.updateTicket(meera.user, c.ticket_id, { status: 'Resolved', resolution: 'We spoke today.' });
+  must((await mailsTo('riya.sharma@acme.test', mark)).some((m) => /Ticket #\d+: Resolved/.test(m.subject) && /We spoke today/.test(m.text) && !/harasses/.test(m.text)), 'employee not told about the reply');
+});
+await flow('password reset: link works once and logs out other sessions', async () => {
+  const riya = await ctxOf('E1001');
+  const session = await auth.createSession(riya.user.id);
+  const t = await auth.createInvite(riya.user.id, 2);
+  must((await auth.findInvite(t))?.joined === true, 'reset link not recognised as a reset');
+  must(await auth.consumeInvite(t, 'new-pass-456'), 'reset failed');
+  must(!(await auth.sessionUser(session)), 'old session still valid after reset');
+  must(!(await auth.consumeInvite(t, 'again-789')), 'reset link worked twice');
 });
 
 // ---------- direct SQL attacks: the tool layer must hold on its own ----------

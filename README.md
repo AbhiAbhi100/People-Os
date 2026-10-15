@@ -25,7 +25,7 @@ Under the hood it is a multi-agent system in **Node.js** built on **LangGraph.js
 1. **Sign up** at `/signup` with the company name. You become the HR admin.
 2. **Policies:** upload PDF (with selectable text), Word, .txt or .md, or paste text. Headings become sections the assistant cites.
 3. **People:** add people one by one or import a CSV (`name, email, title, department, manager_email, location, join_date, access`). Managers are linked by email and get the manager role automatically.
-4. **Invite links:** each person gets a single-use link (valid 14 days) to set their own password. Send it on email or WhatsApp.
+4. **Invites:** with email set up, one click emails everyone a link to set their password. Without it, copy each person's link and send it on WhatsApp. Links work once and expire in 14 days; the same button makes a password-reset link for people who already joined.
 5. **Settings:** leave types and yearly entitlement, notice for earned leave, auto-approve short requests, contacts for POSH / counselling / ethics, a daily message limit.
 
 | Role | Gets |
@@ -33,6 +33,8 @@ Under the hood it is a multi-agent system in **Node.js** built on **LangGraph.js
 | Employee | Assistant, own balances and requests (with cancel), own tickets and HR replies |
 | Manager | Everything above plus *Waiting for your approval* for direct reports, team view, team analytics without sensitive columns |
 | HR | Everything, plus the HR console: people, policies, all leave approvals, tickets, settings, full analytics |
+
+**Email notifications** (when the server has email set up; each company can switch them off): the manager gets an email when someone requests leave, the employee when it's approved or rejected, HR when a ticket is raised (confidential tickets never include their text), and the employee when HR replies. Anyone can reset their own password from *Forgot password?*.
 
 ## Architecture
 
@@ -92,7 +94,7 @@ flowchart TB
 ```
 npm install
 npm start            # → http://localhost:3000  (embedded Postgres in data/pglite, no setup)
-npm run eval         # 45 cases + 6 flows (approvals, isolation) + 6 SQL attacks, on a throwaway in-memory DB
+npm run eval         # 45 cases + 8 flows (approvals, isolation, emails, reset) + 6 SQL attacks, on a throwaway in-memory DB
 npm run test:llm     # real LangChain/LangGraph path against a mock OpenAI server
 npm run test:llm -- gemini   # same through ChatGoogleGenerativeAI, incl. the 503 fallback
 npm run graph        # print the orchestrator graph (Mermaid)
@@ -106,7 +108,8 @@ Node 22.13+. Without an AI key the agents use deterministic rules (common phrasi
 
 1. Create a free Postgres database on [Neon](https://neon.tech) and copy the connection string.
 2. Click the button above → **Deploy Blueprint**. Set `DATABASE_URL` to the Neon string and `GEMINI_API_KEY` to a key from [Google AI Studio](https://aistudio.google.com/apikey).
-3. Optional: `PUBLIC_URL=https://your-app.onrender.com` so invite links use the right domain.
+3. Optional: `PUBLIC_URL=https://your-app.onrender.com` so links in emails use the right domain.
+4. Optional, for email: make a free [Brevo](https://www.brevo.com) account, verify your sender address (Senders → Add a sender, a Gmail address works), create an API key (SMTP & API → API keys), then set `BREVO_API_KEY` and `MAIL_FROM=Your Company HR <you@gmail.com>`. Render's free plan blocks SMTP, which is why PeopleOS sends through Brevo's HTTP API.
 
 Tables are created on first boot. Without `DATABASE_URL` the app still runs, but Render's free disk is wiped on every restart, and the HR console shows a warning saying so.
 
@@ -115,7 +118,8 @@ Tables are created on first boot. Without `DATABASE_URL` the app still runs, but
 | `DATABASE_URL` | Postgres connection string (required in production) |
 | `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`) | One AI provider |
 | `LLM_MODEL`, `LLM_FALLBACK_MODEL` | Override the model (Gemini default `gemini-3.8-flash`, falls back to `gemini-3.5-flash-lite` on 503/429) |
-| `PUBLIC_URL` | Base URL used in invite links |
+| `PUBLIC_URL` | Base URL used in invite and notification links |
+| `BREVO_API_KEY` + `MAIL_FROM` (or `RESEND_API_KEY`) | Email invites, password resets and notifications |
 
 ## Use it from Claude Desktop (MCP)
 
@@ -139,7 +143,6 @@ evals/           cases, harness, synthetic test companies, LLM mocks
 
 ## Roadmap
 
-- Email delivery for invites and approval notifications
 - Postgres checkpointer so paused approvals survive restarts
 - Attendance and payslip uploads; Slack / WhatsApp front ends over the same graph
 - pgvector embeddings for large policy libraries

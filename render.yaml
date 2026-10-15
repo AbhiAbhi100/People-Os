@@ -14,3 +14,8 @@ services:
       # Optional: an AI key turns on free-form questions. Without one the app uses rules.
       - key: GEMINI_API_KEY
         sync: false
+      # Optional: email invites, password resets and leave/ticket notifications (free Brevo account).
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
