@@ -159,7 +159,7 @@ app.post('/api/approve', auth.requireUser, wrap(async (req, res) => {
 }));
 
 app.get('/api/graph', wrap(async (_, res) => res.type('text/plain').send((await peopleGraph.getGraphAsync()).drawMermaid())));
-app.get('/api/health', wrap(async (_, res) => res.json({ ok: true, db: await dbKind(), llm: providerInfo().provider })));
+app.get(['/api/health', '/api/config'], wrap(async (_, res) => res.json({ ok: true, db: await dbKind(), llm: providerInfo().provider })));
 
 // ---------- HR console ----------
 const hr = auth.requireAccess('hr');
