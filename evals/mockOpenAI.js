@@ -9,7 +9,7 @@ const H = {
     : /automate/.test(u) ? [{ agent: 'career', query: u }]
     : /balance/.test(u) ? [{ agent: 'policy', query: 'can I carry forward leaves' }, { agent: 'action', query: 'what is my leave balance' }]
     : /hello/.test(u) ? [] : [{ agent: 'policy', query: u }] }),
-  policy_answer: (u) => { const id = u.match(/\[([a-z-]+#[a-z-]+)\]/)[1]; return { answer: `Yes, see [${id}].`, answerable: true, used_ids: [id] }; },
+  policy_answer: (u) => { const id = u.match(/\[([a-z0-9-]+#[a-z0-9-]+)\]/)[1]; return { answer: `Yes, see [${id}].`, answerable: true, used_ids: [id] }; },
   text_to_sql: () => ({ sql: ++sqlCalls === 1 ? 'SELECT departmnt, COUNT(*) FROM employees GROUP BY 1' : "SELECT department, 1 AS x FROM employees GROUP BY 1", chart: 'bar', title: 'Attrition', refuse: '' }),
   fixed_sql: () => ({ sql: "SELECT department, ROUND(100.0*SUM(status='Exited')/COUNT(*),1) AS attrition_pct FROM employees GROUP BY 1 ORDER BY 2 DESC" }),
   insight: () => ({ insight: '**Customer Support** has the highest attrition.' }),

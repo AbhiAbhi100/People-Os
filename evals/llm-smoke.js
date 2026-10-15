@@ -1,8 +1,5 @@
 // LLM-mode smoke test: runs the real LangChain/LangGraph code against a fake OpenAI server.
 //   npm run test:llm
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 // npm run test:llm            → OpenAI-compatible path (ChatOpenAI)
@@ -10,7 +7,7 @@ import assert from 'node:assert/strict';
 const provider = process.argv[2] === 'gemini' ? 'gemini' : 'openai';
 const PORT = provider === 'gemini' ? 4998 : 4999;
 Object.assign(process.env, {
-  PEOPLEOS_DB: join(mkdtempSync(join(tmpdir(), 'peopleos-llm-')), 'llm.db'),
+  PEOPLEOS_DB: 'memory',
   LLM_PROVIDER: provider, LLM_MODEL: 'mock', PEOPLEOS_TODAY: '2026-10-13',
   ...(provider === 'gemini'
     ? { GEMINI_API_KEY: 'test', GEMINI_BASE_URL: `http://localhost:${PORT}` }
@@ -20,12 +17,13 @@ const mock = provider === 'gemini' ? await import('./mockGemini.js') : await imp
 const mockLog = mock.mockLog;
 const server = await (provider === 'gemini' ? mock.startMockGemini(PORT) : mock.startMockLLM(PORT));
 console.log(`LLM path: ${provider}\n`);
-const { seed } = await import('../src/db/seed.js');
-seed(process.env.PEOPLEOS_DB);
+const { seedCompanies, PERSONAS } = await import('./fixtures/seedCompany.js');
+await seedCompanies();
 const { runTurn, resumeTurn } = await import('../src/agents/orchestrator.js');
-const { PERSONAS } = await import('../src/db/index.js');
+const { one } = await import('../src/db/pg.js');
 const { usage } = await import('../src/llm/provider.js');
-const ctx = { user: PERSONAS.E1003, access: 'hr' };
+const u = await one(`SELECT p.*, c.name AS company_name, c.settings FROM people p JOIN companies c ON c.id = p.company_id WHERE p.email = $1`, [PERSONAS.E1003]);
+const ctx = { user: { id: u.id, name: u.name, email: u.email, title: u.title, access: u.access, company_id: u.company_id }, access: u.access, company: { id: u.company_id, name: u.company_name, settings: u.settings } };
 
 const checks = [];
 const check = (name, fn) => checks.push([name, fn]);
@@ -35,7 +33,7 @@ const turn = (message, threadId = 't') => { steps = []; return runTurn({ threadI
 check('LLM router splits a multi-part message', async () => {
   const r = await turn('Can I carry forward leaves and my balance?', 'a');
   assert.deepEqual(r.route.tasks.map((t) => t.agent), ['policy', 'action']);
-  assert.match(r.results[0].text, /\[leave-policy#carry-forward-and-encashment\]/);
+  assert.match(r.results[0].text, /\[[0-9a-f]{8}#\d+\]/);
 });
 check('ReAct subgraph adapts after a validation error, then interrupts for approval', async () => {
   const r = await turn('apply leave tomorrow', 'b');
