@@ -100,6 +100,8 @@ npm run test:llm -- gemini   # same through ChatGoogleGenerativeAI, incl. the 50
 npm run graph        # print the orchestrator graph (Mermaid)
 ```
 
+To try emails locally without an email account, start with `MAIL_TRANSPORT=memory npm start` and open `/dev/mail` to see every email the app sent.
+
 Node 22.13+. Without an AI key the agents use deterministic rules (common phrasings work); add a key for free-form questions.
 
 ## Deploy (free: Render + Neon)

@@ -8,7 +8,7 @@ import * as co from './services/company.js';
 import * as pol from './services/policies.js';
 import * as work from './services/work.js';
 import { csvToPeople, CSV_TEMPLATE } from './lib/csv.js';
-import { mailEnabled, mailProvider, rememberOrigin } from './lib/mailer.js';
+import { mailEnabled, mailProvider, rememberOrigin, outbox } from './lib/mailer.js';
 import { sendInviteEmail } from './services/notify.js';
 
 const app = express();
@@ -210,6 +210,15 @@ app.get('/api/admin/settings', hr, wrap(async (req, res) => {
 app.put('/api/admin/settings', hr, wrap(async (req, res) => res.json(await co.updateSettings(req.user.company_id, req.body || {}))));
 
 // ---------- errors ----------
+// Local mail preview: with MAIL_TRANSPORT=memory, emails are kept in memory and shown at /dev/mail.
+if (mailProvider() === 'memory') {
+  const escH = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  app.get('/dev/mail', (_req, res) => res.type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mail preview</title>
+<body style="font:15px system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 16px;color:#18202b"><h1 style="font-size:20px">Mail preview <small style="color:#5b6676;font-weight:400">(${outbox.length} sent, newest first; local only)</small></h1>
+${outbox.map((m, i) => ({ m, i })).reverse().map(({ m, i }) => `<a href="/dev/mail/${i}" style="display:block;padding:12px 14px;border:1px solid #e2e6ec;border-radius:10px;margin:8px 0;text-decoration:none;color:inherit"><b>${escH(m.subject)}</b><br><span style="color:#5b6676;font-size:13px">to ${escH(m.to.join(', '))}</span></a>`).join('') || '<p>No emails yet.</p>'}</body>`));
+  app.get('/dev/mail/:i', (req, res) => { const m = outbox[+req.params.i]; return m ? res.type('html').send(m.html) : res.status(404).send('Not found'); });
+}
+
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 app.use((err, req, res, _next) => {
   if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
