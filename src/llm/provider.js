@@ -16,7 +16,7 @@ export const withOffline = (fn) => llmContext.run({ offline: true }, fn);
 export function providerInfo() {
   const p = env.LLM_PROVIDER ||
     (env.ANTHROPIC_API_KEY ? 'anthropic' : env.OPENAI_API_KEY ? 'openai' : env.GEMINI_API_KEY || env.GOOGLE_API_KEY ? 'gemini' : 'offline');
-  const defaults = { anthropic: 'claude-haiku-5-5', openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash', offline: 'rules' };
+  const defaults = { anthropic: 'claude-haiku-5-5', openai: 'gpt-4o-mini', gemini: 'gemini-3.8-flash', offline: 'rules' };
   return { provider: p, model: env.LLM_MODEL || defaults[p] };
 }
 export const isOffline = () => llmContext.getStore()?.offline === true || providerInfo().provider === 'offline';
@@ -53,7 +53,8 @@ export async function getChatModel() {
       configuration: env.OPENAI_BASE_URL ? { baseURL: env.OPENAI_BASE_URL } : undefined });
   } else if (provider === 'gemini') {
     const { ChatGoogleGenerativeAI } = await import('@langchain/google-genai');
-    m = new ChatGoogleGenerativeAI({ ...common, maxOutputTokens: 1024, apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY });
+    m = new ChatGoogleGenerativeAI({ ...common, maxOutputTokens: 2048, apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
+      ...(env.GEMINI_BASE_URL ? { baseUrl: env.GEMINI_BASE_URL } : {}) });
   } else {
     throw new Error(`Unknown LLM_PROVIDER "${provider}"`);
   }
