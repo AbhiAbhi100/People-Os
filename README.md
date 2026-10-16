@@ -94,7 +94,7 @@ flowchart TB
 ```
 npm install
 npm start            # → http://localhost:3000  (embedded Postgres in data/pglite, no setup)
-npm run eval         # 45 cases + 8 flows (approvals, isolation, emails, reset) + 6 SQL attacks, on a throwaway in-memory DB
+npm run eval         # 45 cases + 10 flows (approvals, re-org, exits, isolation, emails, reset) + 6 SQL attacks, on a throwaway in-memory DB
 npm run test:llm     # real LangChain/LangGraph path against a mock OpenAI server
 npm run test:llm -- gemini   # same through ChatGoogleGenerativeAI, incl. the 503 fallback
 npm run graph        # print the orchestrator graph (Mermaid)

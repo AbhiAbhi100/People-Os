@@ -143,6 +143,32 @@ await flow('ticket emails: HR is told, confidential text stays out, reply reache
   await work.updateTicket(meera.user, c.ticket_id, { status: 'Resolved', resolution: 'We spoke today.' });
   must((await mailsTo('riya.sharma@acme.test', mark)).some((m) => /Ticket #\d+: Resolved/.test(m.subject) && /We spoke today/.test(m.text) && !/harasses/.test(m.text)), 'employee not told about the reply');
 });
+await flow('re-org mid-approval: pending leave moves to the new manager', async () => {
+  const work = await import('../src/services/work.js');
+  const co = await import('../src/services/company.js');
+  const riya = await ctxOf('E1001'), arjun = await ctxOf('E1002'), meera = await ctxOf('E1003');
+  const req = await work.applyLeave(riya, { leave_type: 'Casual', start_date: '2026-11-03', end_date: '2026-11-03', reason: 're-org test' });
+  must(req.status === 'Pending', `expected Pending, got ${req.status}`);
+  const other = await one(`SELECT id, email FROM people WHERE company_id = $1 AND access = 'manager' AND status = 'Active' AND id <> $2 LIMIT 1`, [riya.company.id, arjun.user.id]);
+  await co.updatePerson(riya.company.id, riya.user.id, { manager_email: other.email }, meera.user);
+  const oldMgr = await work.decideLeave(arjun.user, req.request_id, 'approve').then(() => null, (e) => e.message);
+  must(oldMgr && /Only their manager or HR/.test(oldMgr), `old manager could still decide: ${oldMgr}`);
+  must(!(await work.pendingApprovals(arjun.user)).some((r) => r.request_id === req.request_id), 'old manager still sees the request');
+  const newMgr = await one('SELECT id, access, company_id FROM people WHERE id = $1', [other.id]);
+  must((await work.pendingApprovals(newMgr)).some((r) => r.request_id === req.request_id), 'new manager does not see the request');
+  const ok = await work.decideLeave(newMgr, req.request_id, 'approve');
+  must(ok.status === 'Approved', 'new manager could not approve');
+  await co.updatePerson(riya.company.id, riya.user.id, { manager_email: arjun.user.email }, meera.user); // restore
+});
+await flow('marking someone as exited ends their access at once', async () => {
+  const co = await import('../src/services/company.js');
+  const kabir = await ctxOf('E1004'), meera = await ctxOf('E1003');
+  const session = await auth.createSession(kabir.user.id);
+  must(await auth.sessionUser(session), 'session not valid before exit');
+  await co.updatePerson(kabir.company.id, kabir.user.id, { status: 'Exited' }, meera.user);
+  must(!(await auth.sessionUser(session)), 'exited person still logged in');
+  await co.updatePerson(kabir.company.id, kabir.user.id, { status: 'Active' }, meera.user); // restore
+});
 await flow('password reset: link works once and logs out other sessions', async () => {
   const riya = await ctxOf('E1001');
   const session = await auth.createSession(riya.user.id);
